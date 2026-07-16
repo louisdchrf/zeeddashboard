@@ -477,11 +477,21 @@ app.post('/discord/interactions', async (req, res) => {
   const timestamp = req.headers['x-signature-timestamp'];
   const publicKey = getSetting('discord_public_key');
 
-  if (!publicKey || !sig || !timestamp || !req.rawBody)
-    return res.status(401).end();
+  if (!sig || !timestamp || !req.rawBody) {
+    console.error('[interactions] Headers manquants:', { sig: !!sig, timestamp: !!timestamp, rawBody: !!req.rawBody });
+    return res.status(401).json({ error: 'Missing headers' });
+  }
+
+  if (!publicKey) {
+    console.error('[interactions] discord_public_key non configurée dans les paramètres');
+    return res.status(401).json({ error: 'Public key not configured' });
+  }
 
   const valid = await verifyDiscordSig(req.rawBody, sig, timestamp, publicKey);
-  if (!valid) return res.status(401).end();
+  if (!valid) {
+    console.error('[interactions] Signature invalide');
+    return res.status(401).json({ error: 'Invalid signature' });
+  }
 
   const body = req.body;
 

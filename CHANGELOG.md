@@ -4,6 +4,11 @@ Toutes les modifications notables du projet sont documentées ici.
 
 ---
 
+## v26.0717.0055 — 17/07/2026 à 00:55
+
+Logging interactions Discord pour diagnostiquer les erreurs de boutons
+
+
 ## v26.0717.0051 — 17/07/2026 à 00:51
 
 Boutons Discord interactifs sur les commandes : 🔄 En cours / ✅ Terminée directement depuis Discord
