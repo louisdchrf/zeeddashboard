@@ -104,8 +104,9 @@ function switchTab(tab) {
   document.querySelectorAll('.bnav-btn').forEach(b => b.classList.toggle('active', b.dataset.tab === tab));
   document.querySelectorAll('.tab-content').forEach(t => t.classList.remove('active'));
   document.getElementById('tab-' + tab).classList.add('active');
-  if (tab === 'map')  map.invalidateSize();
-  if (tab === 'list') renderList();
+  if (tab === 'map')    map.invalidateSize();
+  if (tab === 'list')   renderList();
+  if (tab === 'orders') renderOrders();
 }
 
 document.querySelectorAll('.tab-btn, .bnav-btn').forEach(btn =>
@@ -681,11 +682,208 @@ setInterval(async () => {
   if (document.querySelector('.leaflet-popup')) points.forEach(p => refreshPopup(p.id));
 }, 60_000);
 
+// ── Commandes ─────────────────────────────────────────────────────────────────
+let orderItems = [];
+let orders     = [];
+let allUsers   = [];
+
+async function loadOrderItems() {
+  orderItems = await api.get('/api/order-items') || [];
+}
+
+async function loadOrders() {
+  orders = await api.get('/api/orders') || [];
+}
+
+async function loadUsers() {
+  allUsers = await api.get('/api/users') || [];
+}
+
+function renderOrders() {
+  const tbody = document.getElementById('orders-body');
+  if (!tbody) return;
+
+  const pending = orders.filter(o => o.status === 'pending');
+  const done    = orders.filter(o => o.status === 'done');
+  const sorted  = [...pending, ...done];
+
+  tbody.innerHTML = sorted.length === 0
+    ? '<tr><td colspan="7" style="text-align:center;color:var(--text2);padding:24px">Aucune commande</td></tr>'
+    : sorted.map(o => {
+        const deadline = o.deadline
+          ? new Date(o.deadline).toLocaleDateString('fr-FR')
+          : '<span style="color:var(--text2)">—</span>';
+
+        const assignees = o.assignees.map(u =>
+          `<span class="assignee-tag">${escapeHtml(u.username)}</span>`
+        ).join('');
+
+        const statusBadge = o.status === 'done'
+          ? '<span class="vis-badge shared">✓ Terminée</span>'
+          : '<span class="vis-badge" style="background:rgba(230,126,34,.15);color:#e67e22;border-color:#e67e22">En cours</span>';
+
+        const canAct = currentUser?.is_admin || o.created_by === currentUser?.id;
+        const actions = o.status === 'pending'
+          ? `<button class="btn-harvest" onclick="completeOrder(${o.id})">✓ Terminer</button>
+             ${canAct ? `<button class="btn-edit" onclick="openEditOrderModal(${o.id})">✏️</button>
+             <button class="btn-delete" onclick="deleteOrder(${o.id})">🗑️</button>` : ''}`
+          : `${canAct ? `<button class="btn-delete" onclick="deleteOrder(${o.id})">🗑️</button>` : ''}`;
+
+        return `<tr class="${o.status === 'done' ? 'order-done' : ''}">
+          <td>${escapeHtml(o.item_name)}</td>
+          <td>${o.quantity}</td>
+          <td>${deadline}</td>
+          <td>${assignees || '—'}</td>
+          <td>${escapeHtml(o.created_by_name || '—')}</td>
+          <td>${statusBadge}</td>
+          <td class="actions-cell">${actions}</td>
+        </tr>`;
+      }).join('');
+}
+
+function renderOrderItemsList() {
+  const el = document.getElementById('order-items-list');
+  if (!el) return;
+  el.innerHTML = orderItems.length === 0
+    ? '<p style="color:var(--text2);font-size:.85rem">Aucun article — ajoute-en un.</p>'
+    : orderItems.map(item => `
+        <div class="order-item-row">
+          <span>${escapeHtml(item.name)}</span>
+          <button class="btn-delete" onclick="deleteOrderItem(${item.id})">🗑️</button>
+        </div>
+      `).join('');
+}
+
+function populateOrderItemSelect(selectedId = null) {
+  const sel = document.getElementById('o-item');
+  sel.innerHTML = orderItems.length === 0
+    ? '<option value="">— Aucun article disponible —</option>'
+    : orderItems.map(i =>
+        `<option value="${i.id}" ${i.id == selectedId ? 'selected' : ''}>${escapeHtml(i.name)}</option>`
+      ).join('');
+}
+
+function populateAssigneeCheckboxes(selectedIds = []) {
+  const container = document.getElementById('o-assignees');
+  container.innerHTML = allUsers.length === 0
+    ? '<p style="color:var(--text2);font-size:.85rem">Aucun utilisateur.</p>'
+    : allUsers.map(u => `
+        <label class="assignee-checkbox">
+          <input type="checkbox" value="${u.id}" ${selectedIds.includes(u.id) ? 'checked' : ''}/>
+          ${escapeHtml(u.username)}
+        </label>
+      `).join('');
+}
+
+function openNewOrderModal() {
+  document.getElementById('o-id').value = '';
+  document.getElementById('order-modal-title').textContent = 'Nouvelle commande';
+  document.getElementById('o-quantity').value = 1;
+  document.getElementById('o-deadline').value = '';
+  populateOrderItemSelect();
+  populateAssigneeCheckboxes();
+  document.getElementById('modal-order').style.display = 'flex';
+}
+
+function openEditOrderModal(id) {
+  const o = orders.find(x => x.id === id);
+  if (!o) return;
+  document.getElementById('o-id').value = id;
+  document.getElementById('order-modal-title').textContent = 'Modifier la commande';
+  document.getElementById('o-quantity').value = o.quantity;
+  document.getElementById('o-deadline').value = o.deadline ? o.deadline.slice(0, 10) : '';
+  populateOrderItemSelect(o.item_id);
+  populateAssigneeCheckboxes(o.assignees.map(u => u.id));
+  document.getElementById('modal-order').style.display = 'flex';
+}
+
+function closeOrderModal() {
+  document.getElementById('modal-order').style.display = 'none';
+}
+
+document.getElementById('btn-add-order').addEventListener('click', openNewOrderModal);
+document.getElementById('cancel-order').addEventListener('click', closeOrderModal);
+
+document.getElementById('confirm-order').addEventListener('click', async () => {
+  const id       = document.getElementById('o-id').value;
+  const item_id  = document.getElementById('o-item').value;
+  const quantity = parseInt(document.getElementById('o-quantity').value) || 1;
+  const deadline = document.getElementById('o-deadline').value || null;
+  const user_ids = [...document.querySelectorAll('#o-assignees input[type=checkbox]:checked')]
+    .map(cb => parseInt(cb.value));
+
+  if (!item_id) return alert('Sélectionne un article.');
+  if (user_ids.length === 0) return alert('Assigne la commande à au moins une personne.');
+
+  const body = { item_id: parseInt(item_id), quantity, deadline, user_ids };
+  const r = id
+    ? await api.put(`/api/orders/${id}`, body)
+    : await api.post('/api/orders', body);
+
+  if (r?.error) return alert(r.error);
+  closeOrderModal();
+  await loadOrders();
+  renderOrders();
+});
+
+async function completeOrder(id) {
+  if (!confirm('Marquer cette commande comme terminée ?')) return;
+  const r = await api.post(`/api/orders/${id}/complete`, {});
+  if (r?.error) return alert(r.error);
+  await loadOrders();
+  renderOrders();
+}
+
+async function deleteOrder(id) {
+  if (!confirm('Supprimer cette commande ?')) return;
+  const r = await api.delete(`/api/orders/${id}`);
+  if (r?.error) return alert(r.error);
+  await loadOrders();
+  renderOrders();
+}
+
+// ── Articles commandables (admin) ─────────────────────────────────────────────
+document.getElementById('btn-add-order-item').addEventListener('click', () => {
+  document.getElementById('oi-name').value = '';
+  document.getElementById('modal-order-item').style.display = 'flex';
+});
+
+document.getElementById('cancel-order-item').addEventListener('click', () => {
+  document.getElementById('modal-order-item').style.display = 'none';
+});
+
+document.getElementById('confirm-order-item').addEventListener('click', async () => {
+  const name = document.getElementById('oi-name').value.trim();
+  if (!name) return alert('Nom requis.');
+  const r = await api.post('/api/order-items', { name });
+  if (r?.error) return alert(r.error);
+  document.getElementById('modal-order-item').style.display = 'none';
+  await loadOrderItems();
+  renderOrderItemsList();
+  populateOrderItemSelect();
+});
+
+async function deleteOrderItem(id) {
+  if (!confirm('Supprimer cet article ?')) return;
+  const r = await api.delete(`/api/order-items/${id}`);
+  if (r?.error) return alert(r.error);
+  await loadOrderItems();
+  renderOrderItemsList();
+  populateOrderItemSelect();
+}
+
 // ── Boot ──────────────────────────────────────────────────────────────────────
 (async () => {
   const user = await checkAuth();
   if (!user) return;
   await loadMerchandise();
   await loadPoints();
-  if (user.is_admin) await loadSettings();
+  await loadOrderItems();
+  await loadOrders();
+  await loadUsers();
+  if (user.is_admin) {
+    await loadSettings();
+    document.querySelectorAll('.order-items-section').forEach(el => el.style.display = '');
+  }
+  renderOrderItemsList();
 })();

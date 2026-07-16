@@ -41,6 +41,27 @@ db.exec(`
     sess TEXT NOT NULL,
     expired INTEGER NOT NULL
   );
+
+  CREATE TABLE IF NOT EXISTS order_items (
+    id   INTEGER PRIMARY KEY AUTOINCREMENT,
+    name TEXT NOT NULL UNIQUE
+  );
+
+  CREATE TABLE IF NOT EXISTS orders (
+    id          INTEGER PRIMARY KEY AUTOINCREMENT,
+    item_id     INTEGER NOT NULL REFERENCES order_items(id),
+    quantity    INTEGER NOT NULL DEFAULT 1,
+    deadline    TEXT,
+    status      TEXT NOT NULL DEFAULT 'pending',
+    created_by  INTEGER REFERENCES users(id),
+    created_at  TEXT NOT NULL DEFAULT (datetime('now'))
+  );
+
+  CREATE TABLE IF NOT EXISTS order_assignments (
+    order_id INTEGER NOT NULL REFERENCES orders(id) ON DELETE CASCADE,
+    user_id  INTEGER NOT NULL REFERENCES users(id),
+    PRIMARY KEY (order_id, user_id)
+  );
 `);
 
 // Migrations idempotentes

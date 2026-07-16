@@ -478,4 +478,147 @@ setInterval(async () => {
   }
 }, 60_000);
 
+// ── Users list (pour assignation des commandes) ───────────────────────────────
+app.get('/api/users', (_, res) => {
+  res.json(db.prepare('SELECT id, username, avatar, discord_id FROM users ORDER BY username').all());
+});
+
+// ── Order items ───────────────────────────────────────────────────────────────
+app.get('/api/order-items', (_, res) => {
+  res.json(db.prepare('SELECT * FROM order_items ORDER BY name').all());
+});
+
+app.post('/api/order-items', requireAdmin, (req, res) => {
+  const { name } = req.body;
+  if (!name?.trim()) return res.status(400).json({ error: 'Nom requis' });
+  try {
+    const r = db.prepare('INSERT INTO order_items (name) VALUES (?)').run(name.trim());
+    res.json({ id: r.lastInsertRowid, name: name.trim() });
+  } catch (e) {
+    if (e.message.includes('UNIQUE')) return res.status(400).json({ error: 'Cet article existe déjà' });
+    throw e;
+  }
+});
+
+app.delete('/api/order-items/:id', requireAdmin, (req, res) => {
+  const hasActive = db.prepare("SELECT id FROM orders WHERE item_id=? AND status='pending'").get(req.params.id);
+  if (hasActive) return res.status(400).json({ error: 'Des commandes actives utilisent cet article' });
+  db.prepare('DELETE FROM order_items WHERE id=?').run(req.params.id);
+  res.json({ success: true });
+});
+
+// ── Orders ────────────────────────────────────────────────────────────────────
+app.get('/api/orders', (_, res) => {
+  const orders = db.prepare(`
+    SELECT o.*, oi.name AS item_name, u.username AS created_by_name
+    FROM orders o
+    JOIN order_items oi ON o.item_id = oi.id
+    LEFT JOIN users u ON o.created_by = u.id
+    ORDER BY o.created_at DESC
+  `).all();
+  for (const o of orders) {
+    o.assignees = db.prepare(`
+      SELECT u.id, u.username, u.avatar, u.discord_id
+      FROM order_assignments oa JOIN users u ON oa.user_id = u.id
+      WHERE oa.order_id = ?
+    `).all(o.id);
+  }
+  res.json(orders);
+});
+
+app.post('/api/orders', async (req, res) => {
+  const { item_id, quantity = 1, deadline, user_ids = [] } = req.body;
+  if (!item_id) return res.status(400).json({ error: 'Article requis' });
+  if (!Array.isArray(user_ids) || user_ids.length === 0)
+    return res.status(400).json({ error: 'Assigne la commande à au moins une personne' });
+
+  const item = db.prepare('SELECT * FROM order_items WHERE id=?').get(item_id);
+  if (!item) return res.status(400).json({ error: 'Article introuvable' });
+
+  const r = db.prepare('INSERT INTO orders (item_id, quantity, deadline, created_by) VALUES (?, ?, ?, ?)')
+    .run(item_id, quantity, deadline || null, req.session.userId);
+  const orderId = r.lastInsertRowid;
+
+  const insAssign = db.prepare('INSERT OR IGNORE INTO order_assignments (order_id, user_id) VALUES (?, ?)');
+  for (const uid of user_ids) insAssign.run(orderId, uid);
+
+  // Notification Discord
+  const token     = getSetting('discord_bot_token');
+  const channelId = getSetting('discord_notify_channel_id');
+  if (token && channelId) {
+    try {
+      const assignees = db.prepare(`
+        SELECT u.username, u.discord_id
+        FROM order_assignments oa JOIN users u ON oa.user_id = u.id
+        WHERE oa.order_id = ?
+      `).all(orderId);
+
+      const mentions = assignees
+        .filter(u => u.discord_id && u.discord_id !== '__admin__' && u.discord_id !== 'local')
+        .map(u => `<@${u.discord_id}>`).join(' ');
+
+      const deadlineStr = deadline
+        ? new Date(deadline).toLocaleDateString('fr-FR')
+        : 'Non définie';
+
+      await botPost(`/channels/${channelId}/messages`, {
+        content: mentions || null,
+        embeds: [{
+          title: '📦 Nouvelle commande !',
+          color: 0xe67e22,
+          fields: [
+            { name: 'Article',    value: item.name,                                         inline: true },
+            { name: 'Quantité',   value: String(quantity),                                  inline: true },
+            { name: 'Deadline',   value: deadlineStr,                                       inline: true },
+            { name: 'Assigné à',  value: assignees.map(u => u.username).join(', ') || '—', inline: false },
+          ],
+        }],
+      }, token);
+    } catch (e) {
+      console.error('Order notification error:', e.message);
+    }
+  }
+
+  res.json({ id: orderId });
+});
+
+app.put('/api/orders/:id', (req, res) => {
+  const order = db.prepare('SELECT * FROM orders WHERE id=?').get(req.params.id);
+  if (!order) return res.status(404).json({ error: 'Introuvable' });
+  const user = db.prepare('SELECT is_admin FROM users WHERE id=?').get(req.session.userId);
+  if (!user?.is_admin && order.created_by !== req.session.userId)
+    return res.status(403).json({ error: 'Non autorisé' });
+
+  const { item_id, quantity, deadline, user_ids } = req.body;
+  db.prepare('UPDATE orders SET item_id=?, quantity=?, deadline=? WHERE id=?')
+    .run(item_id, quantity, deadline || null, req.params.id);
+
+  if (Array.isArray(user_ids)) {
+    db.prepare('DELETE FROM order_assignments WHERE order_id=?').run(req.params.id);
+    const ins = db.prepare('INSERT OR IGNORE INTO order_assignments (order_id, user_id) VALUES (?, ?)');
+    for (const uid of user_ids) ins.run(req.params.id, uid);
+  }
+  res.json({ success: true });
+});
+
+app.post('/api/orders/:id/complete', (req, res) => {
+  const order = db.prepare('SELECT * FROM orders WHERE id=?').get(req.params.id);
+  if (!order) return res.status(404).json({ error: 'Introuvable' });
+  const user = db.prepare('SELECT is_admin FROM users WHERE id=?').get(req.session.userId);
+  if (!user?.is_admin && order.created_by !== req.session.userId)
+    return res.status(403).json({ error: 'Non autorisé' });
+  db.prepare("UPDATE orders SET status='done' WHERE id=?").run(req.params.id);
+  res.json({ success: true });
+});
+
+app.delete('/api/orders/:id', (req, res) => {
+  const order = db.prepare('SELECT * FROM orders WHERE id=?').get(req.params.id);
+  if (!order) return res.status(404).json({ error: 'Introuvable' });
+  const user = db.prepare('SELECT is_admin FROM users WHERE id=?').get(req.session.userId);
+  if (!user?.is_admin && order.created_by !== req.session.userId)
+    return res.status(403).json({ error: 'Non autorisé' });
+  db.prepare('DELETE FROM orders WHERE id=?').run(req.params.id);
+  res.json({ success: true });
+});
+
 app.listen(3000, () => console.log('GTA Dashboard → http://localhost:3000'));

@@ -62,6 +62,7 @@
     <button class="tab-btn" data-tab="map">Carte</button>
     <button class="tab-btn" data-tab="merchandise">Marchandises</button>
     <button class="tab-btn active" data-tab="list">Plants actifs</button>
+    <button class="tab-btn" data-tab="orders">Commandes</button>
     <button class="tab-btn tab-admin" data-tab="settings" style="display:none">Paramètres</button>
   </nav>
   <div class="user-info">
@@ -366,6 +367,81 @@
   </div>
 </div>
 
+<!-- ── TAB: Commandes ── -->
+<div id="tab-orders" class="tab-content">
+  <div class="section-header">
+    <h2>Commandes</h2>
+    <button class="btn-primary" id="btn-add-order">+ Nouvelle commande</button>
+  </div>
+
+  <table class="plant-table" id="orders-table">
+    <thead>
+      <tr>
+        <th>Article</th>
+        <th>Quantité</th>
+        <th>Deadline</th>
+        <th>Assigné à</th>
+        <th>Créé par</th>
+        <th>Statut</th>
+        <th>Actions</th>
+      </tr>
+    </thead>
+    <tbody id="orders-body"></tbody>
+  </table>
+
+  <!-- Articles commandables (admin) -->
+  <div class="settings-section tab-admin order-items-section" style="display:none">
+    <div class="section-header" style="margin-bottom:12px">
+      <h3 style="margin:0">Articles commandables</h3>
+      <button class="btn-secondary" id="btn-add-order-item">+ Ajouter</button>
+    </div>
+    <div id="order-items-list" class="order-items-list"></div>
+  </div>
+</div>
+
+<!-- ── Modal: Nouvelle / éditer commande ── -->
+<div class="modal-overlay" id="modal-order">
+  <div class="modal-box">
+    <h2 id="order-modal-title">Nouvelle commande</h2>
+    <input type="hidden" id="o-id"/>
+    <div class="form-group">
+      <label>Article</label>
+      <select id="o-item"></select>
+    </div>
+    <div class="form-group">
+      <label>Quantité</label>
+      <input type="number" id="o-quantity" min="1" value="1"/>
+    </div>
+    <div class="form-group">
+      <label>Deadline (optionnel)</label>
+      <input type="date" id="o-deadline"/>
+    </div>
+    <div class="form-group">
+      <label>Assigner à</label>
+      <div id="o-assignees" class="assignee-list"></div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn-cancel" id="cancel-order">Annuler</button>
+      <button class="btn-confirm" id="confirm-order">Enregistrer</button>
+    </div>
+  </div>
+</div>
+
+<!-- ── Modal: Ajouter un article commandable ── -->
+<div class="modal-overlay" id="modal-order-item">
+  <div class="modal-box" style="max-width:380px">
+    <h2>Nouvel article</h2>
+    <div class="form-group">
+      <label>Nom</label>
+      <input type="text" id="oi-name" placeholder="ex: Rocket Launcher"/>
+    </div>
+    <div class="modal-footer">
+      <button class="btn-cancel" id="cancel-order-item">Annuler</button>
+      <button class="btn-confirm" id="confirm-order-item">Ajouter</button>
+    </div>
+  </div>
+</div>
+
 <!-- ── Bottom nav (mobile/tablette) ── -->
 <div id="bottom-nav">
   <button class="bnav-btn" data-tab="map">
@@ -379,6 +455,10 @@
   <button class="bnav-btn" data-tab="merchandise">
     <span class="bnav-icon">📦</span>
     <span class="bnav-label">Marchés</span>
+  </button>
+  <button class="bnav-btn" data-tab="orders">
+    <span class="bnav-icon">🛒</span>
+    <span class="bnav-label">Commandes</span>
   </button>
   <button class="bnav-btn bnav-admin" data-tab="settings" style="display:none">
     <span class="bnav-icon">⚙️</span>

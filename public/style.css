@@ -667,3 +667,67 @@ nav { display: flex; gap: 4px; }
 
   .settings-wrap { padding: 16px; }
 }
+
+/* ── Commandes ── */
+.order-done td { opacity: 0.5; }
+
+.assignee-tag {
+  display: inline-block;
+  background: rgba(88, 101, 242, .15);
+  color: #8892f5;
+  border: 1px solid rgba(88, 101, 242, .3);
+  border-radius: 4px;
+  padding: 1px 7px;
+  font-size: 0.78rem;
+  margin: 1px 2px;
+  white-space: nowrap;
+}
+
+.assignee-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  max-height: 200px;
+  overflow-y: auto;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 8px;
+  background: var(--bg);
+}
+
+.assignee-checkbox {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 5px 6px;
+  border-radius: 5px;
+  cursor: pointer;
+  font-size: 0.88rem;
+  color: var(--text);
+  transition: background .1s;
+}
+.assignee-checkbox:hover { background: var(--surface2); }
+.assignee-checkbox input { accent-color: var(--accent); cursor: pointer; }
+
+.order-items-section {
+  margin-top: 32px;
+  border-top: 1px solid var(--border);
+  padding-top: 20px;
+}
+
+.order-items-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.order-item-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 12px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  font-size: 0.9rem;
+}
