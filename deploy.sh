@@ -19,17 +19,15 @@ fi
 
 # ── Mise à jour du CHANGELOG ─────────────────────────────────────────────────
 DATE_LABEL=$(date +"%d/%m/%Y à %H:%M")
-CHANGELOG_ENTRY="## v$BUILD_VERSION — $DATE_LABEL
-
-$DESCRIPTION"
-
 # Insère l'entrée après la ligne "---"
 TMPFILE=$(mktemp)
-awk -v entry="$CHANGELOG_ENTRY" '
+awk -v version="v$BUILD_VERSION" -v date="$DATE_LABEL" -v desc="$DESCRIPTION" '
   /^---$/ && !done {
     print
     print ""
-    print entry
+    print "## " version " — " date
+    print ""
+    print desc
     print ""
     done=1
     next
