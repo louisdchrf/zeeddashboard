@@ -1,0 +1,16 @@
+services:
+  app:
+    build: .
+    ports:
+      - "3000:3000"
+    volumes:
+      - ./data:/app/data
+      - ./public:/app/public
+    env_file:
+      - path: .env
+        required: false
+    environment:
+      - SESSION_SECRET=${SESSION_SECRET:-gta-dashboard-dev-secret}
+      - NODE_ENV=production
+      - BUILD_VERSION=${BUILD_VERSION:-dev}
+    restart: unless-stopped

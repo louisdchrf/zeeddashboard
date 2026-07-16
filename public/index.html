@@ -1,0 +1,431 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>GTA V — Drug Map</title>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+  <link rel="stylesheet" href="style.css"/>
+</head>
+<body>
+
+<!-- ── Login screen ── -->
+<div id="login-screen" class="login-screen">
+  <div class="login-box">
+    <h1>GTA V — Drug Map</h1>
+
+    <!-- Première configuration -->
+    <div id="login-setup" style="display:none">
+      <p class="login-subtitle">Première connexion — crée ton compte admin</p>
+      <div class="form-group">
+        <label>Nom d'utilisateur</label>
+        <input type="text" id="setup-username" placeholder="admin" autocomplete="username"/>
+      </div>
+      <div class="form-group">
+        <label>Mot de passe</label>
+        <input type="password" id="setup-password" placeholder="Minimum 6 caractères" autocomplete="new-password"/>
+      </div>
+      <button class="btn-primary btn-full" id="btn-setup">Créer le compte admin</button>
+    </div>
+
+    <!-- Connexion normale -->
+    <div id="login-form" style="display:none">
+      <div class="form-group">
+        <label>Nom d'utilisateur</label>
+        <input type="text" id="login-username" autocomplete="username"/>
+      </div>
+      <div class="form-group">
+        <label>Mot de passe</label>
+        <input type="password" id="login-password" autocomplete="current-password"/>
+      </div>
+      <button class="btn-primary btn-full" id="btn-admin-login">Se connecter</button>
+
+      <div id="discord-divider" class="login-divider" style="display:none">
+        <span>ou</span>
+      </div>
+      <a id="discord-login-btn" href="/auth/discord" class="btn-discord" style="display:none">
+        <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 127.14 96.36">
+          <path fill="currentColor" d="M107.7 8.07A105.15 105.15 0 0 0 81.47 0a72.06 72.06 0 0 0-3.36 6.83 97.68 97.68 0 0 0-29.11 0A72.37 72.37 0 0 0 45.64 0a105.89 105.89 0 0 0-26.25 8.09C2.79 32.65-1.71 56.6.54 80.21a105.73 105.73 0 0 0 32.17 16.15 77.7 77.7 0 0 0 6.89-11.11 68.42 68.42 0 0 1-10.85-5.18c.91-.66 1.8-1.34 2.66-2a75.57 75.57 0 0 0 64.32 0c.87.71 1.76 1.39 2.66 2a68.68 68.68 0 0 1-10.87 5.19 77 77 0 0 0 6.89 11.1 105.25 105.25 0 0 0 32.19-16.14c2.64-27.38-4.51-51.11-18.9-72.15ZM42.45 65.69C36.18 65.69 31 60 31 53s5-12.74 11.43-12.74S54 46 53.89 53s-5.05 12.69-11.44 12.69Zm42.24 0C78.41 65.69 73.25 60 73.25 53s5-12.74 11.44-12.74S96.23 46 96.12 53s-5.04 12.69-11.43 12.69Z"/>
+        </svg>
+        Se connecter avec Discord
+      </a>
+    </div>
+
+    <div id="login-error" class="login-error"></div>
+  </div>
+</div>
+
+<!-- ── Header ── -->
+<div id="header">
+  <h1>GTA V — Drug Map</h1>
+  <nav>
+    <button class="tab-btn" data-tab="map">Carte</button>
+    <button class="tab-btn" data-tab="merchandise">Marchandises</button>
+    <button class="tab-btn active" data-tab="list">Plants actifs</button>
+    <button class="tab-btn tab-admin" data-tab="settings" style="display:none">Paramètres</button>
+  </nav>
+  <div class="user-info">
+    <span id="app-version" class="app-version"></span>
+    <img id="user-avatar" class="user-avatar" src="" alt=""/>
+    <span id="user-name"></span>
+    <button id="btn-logout" class="btn-logout">Déco</button>
+  </div>
+</div>
+
+<!-- ── TAB: Carte ── -->
+<div id="tab-map" class="tab-content">
+  <div id="map"></div>
+  <div id="map-filters">
+    <button class="map-filter-btn active" data-filter="all">Tout</button>
+    <button class="map-filter-btn" data-filter="shared">👥 Équipe</button>
+    <button class="map-filter-btn" data-filter="personal">🔒 Perso</button>
+  </div>
+  <div id="map-hint">Clic droit / appui long pour planter</div>
+</div>
+
+<!-- ── TAB: Marchandises ── -->
+<div id="tab-merchandise" class="tab-content">
+  <div class="section-header">
+    <h2>Marchandises</h2>
+    <button class="btn-primary tab-admin" id="btn-add-merch" style="display:none">+ Ajouter</button>
+  </div>
+  <div class="merch-grid" id="merch-grid"></div>
+</div>
+
+<!-- ── TAB: Plants actifs ── -->
+<div id="tab-list" class="tab-content active">
+  <div class="section-header">
+    <h2>Plants actifs</h2>
+    <div class="list-header-right">
+      <div class="list-filters">
+        <button class="list-filter-btn active" data-filter="all">Tout</button>
+        <button class="list-filter-btn" data-filter="shared">👥 Équipe</button>
+        <button class="list-filter-btn" data-filter="personal">🔒 Perso</button>
+      </div>
+      <button class="btn-primary" id="btn-add-list-plant">+ Ajouter</button>
+    </div>
+  </div>
+  <table class="plant-table">
+    <thead>
+      <tr>
+        <th>Marchandise</th>
+        <th>Joueur</th>
+        <th>Qté</th>
+        <th>Lieu</th>
+        <th>Env.</th>
+        <th>Planté à</th>
+        <th>Récoltable le</th>
+        <th>Statut</th>
+        <th>Visibilité</th>
+        <th>Actions</th>
+      </tr>
+    </thead>
+    <tbody id="list-body"></tbody>
+  </table>
+</div>
+
+<!-- ── TAB: Paramètres (admin seulement) ── -->
+<div id="tab-settings" class="tab-content">
+  <div class="settings-wrap">
+    <div class="section-header">
+      <h2>Paramètres</h2>
+    </div>
+
+    <!-- Discord OAuth2 -->
+    <div class="settings-section">
+      <h3>Connexion Discord (OAuth2)</h3>
+      <p class="settings-hint">Crée une app sur <strong>discord.com/developers/applications</strong>, puis renseigne les champs ci-dessous. Dans ton app Discord, ajoute l'URL de callback dans OAuth2 &gt; Redirects.</p>
+      <div class="form-group">
+        <label>Client ID</label>
+        <input type="text" id="s-discord-client-id" placeholder="123456789012345678"/>
+      </div>
+      <div class="form-group">
+        <label>Client Secret</label>
+        <input type="password" id="s-discord-client-secret" placeholder="Laisser vide pour ne pas modifier"/>
+      </div>
+      <div class="form-group">
+        <label>URL de callback (à ajouter dans Discord → OAuth2 → Redirects)</label>
+        <div style="display:flex;gap:8px;align-items:center">
+          <input type="text" id="s-discord-redirect-uri" placeholder="https://zeed.apt56.fr/auth/discord/callback"/>
+          <button class="btn-secondary" id="btn-fill-redirect" style="white-space:nowrap;flex-shrink:0">Auto</button>
+        </div>
+      </div>
+      <div class="form-group">
+        <label>ID du serveur Discord (accès réservé aux membres)</label>
+        <input type="text" id="s-discord-guild-id" placeholder="ex: 123456789012345678 — laisser vide = pas de restriction"/>
+        <p class="field-hint">Clic droit sur ton serveur Discord → Copier l'identifiant du serveur</p>
+      </div>
+      <button class="btn-primary" id="btn-save-discord">Enregistrer</button>
+      <div id="discord-settings-status" class="settings-status"></div>
+    </div>
+
+    <!-- Bot Discord -->
+    <div class="settings-section">
+      <h3>Notifications Discord (Bot)</h3>
+      <p class="settings-hint">Le bot poste dans un salon pour les plantations partagées, et envoie un MP au joueur pour ses plantations personnelles.</p>
+      <div class="form-group">
+        <label>Bot Token</label>
+        <input type="password" id="s-bot-token" placeholder="(laisser vide pour conserver)"/>
+        <span class="field-hint">Depuis le portail développeur Discord → Bot → Token</span>
+      </div>
+      <div class="form-group">
+        <label>ID Salon (plantations partagées)</label>
+        <input type="text" id="s-notify-channel-id" placeholder="123456789012345678"/>
+        <span class="field-hint">Clic droit sur le salon → Copier l'identifiant (mode développeur activé)</span>
+      </div>
+      <div style="display:flex;gap:8px">
+        <button class="btn-primary" id="btn-save-bot">Enregistrer</button>
+        <button class="btn-secondary" id="btn-test-bot">Tester le salon</button>
+      </div>
+      <div id="bot-status" class="settings-status"></div>
+    </div>
+
+    <!-- Gestion des accès -->
+    <div class="settings-section">
+      <h3>Gestion des accès</h3>
+      <p class="settings-hint">Forcer la re-connexion de tous les utilisateurs Discord (le check d'appartenance au serveur sera rejoué). Ton compte admin n'est pas affecté.</p>
+      <button class="btn-danger" id="btn-revoke-sessions">Révoquer toutes les sessions Discord</button>
+      <div id="revoke-status" class="settings-status"></div>
+    </div>
+
+    <!-- Mot de passe admin -->
+    <div class="settings-section">
+      <h3>Mot de passe admin</h3>
+      <div class="form-group">
+        <label>Nouveau mot de passe</label>
+        <input type="password" id="s-new-password" placeholder="Minimum 6 caractères" autocomplete="new-password"/>
+      </div>
+      <div class="form-group">
+        <label>Confirmer</label>
+        <input type="password" id="s-confirm-password" autocomplete="new-password"/>
+      </div>
+      <button class="btn-primary" id="btn-change-password">Mettre à jour</button>
+      <div id="password-status" class="settings-status"></div>
+    </div>
+  </div>
+</div>
+
+<!-- ── Modal: Ajouter un plant ── -->
+<div class="modal-overlay" id="modal-plant">
+  <div class="modal-box">
+    <h2>Planter une marchandise</h2>
+    <div class="form-group">
+      <label>Marchandise</label>
+      <select id="p-merch"></select>
+    </div>
+    <div class="form-group">
+      <label>Position</label>
+      <div class="radio-group">
+        <label class="radio-label selected" id="lbl-ground">
+          <input type="radio" name="pos" value="ground" checked> Au sol
+        </label>
+        <label class="radio-label" id="lbl-elevated">
+          <input type="radio" name="pos" value="elevated"> En hauteur
+        </label>
+      </div>
+    </div>
+    <div class="form-group">
+      <label>Environnement</label>
+      <div class="radio-group">
+        <label class="radio-label selected" id="lbl-exterior">
+          <input type="radio" name="env" value="exterior" checked> Extérieur
+        </label>
+        <label class="radio-label" id="lbl-interior">
+          <input type="radio" name="env" value="interior"> Intérieur
+        </label>
+      </div>
+    </div>
+    <div class="form-group">
+      <label>Quantité de plants</label>
+      <input type="number" id="p-quantity" min="1" value="1"/>
+    </div>
+    <div class="form-group">
+      <label>Temps déjà écoulé (minutes)</label>
+      <input type="number" id="p-elapsed" min="0" value="0" placeholder="0"/>
+    </div>
+    <div class="form-group">
+      <label>Lieu</label>
+      <input type="text" id="p-location" placeholder="ex: Vinewood Hills" list="districts-list"/>
+    </div>
+    <div class="form-group">
+      <label>Visibilité</label>
+      <div class="radio-group">
+        <label class="radio-label" id="lbl-personal">
+          <input type="radio" name="vis" value="personal"> 🔒 Personnelle
+        </label>
+        <label class="radio-label selected" id="lbl-shared">
+          <input type="radio" name="vis" value="shared" checked> 👥 Partagée
+        </label>
+      </div>
+    </div>
+    <div class="form-group">
+      <label>Notes (optionnel)</label>
+      <input type="text" id="p-notes" placeholder="ex: derrière le hangar"/>
+    </div>
+    <div class="modal-footer">
+      <button class="btn-cancel" id="cancel-plant">Annuler</button>
+      <button class="btn-confirm" id="confirm-plant">Planter</button>
+    </div>
+  </div>
+</div>
+
+<!-- ── Modal: Éditer un plant ── -->
+<div class="modal-overlay" id="modal-edit">
+  <div class="modal-box">
+    <h2>Modifier le plant</h2>
+    <input type="hidden" id="e-id"/>
+    <input type="hidden" id="e-planted-at"/>
+    <div class="form-group">
+      <label>Marchandise</label>
+      <select id="e-merch"></select>
+    </div>
+    <div class="form-group">
+      <label>Position</label>
+      <div class="radio-group">
+        <label class="radio-label" id="e-lbl-ground">
+          <input type="radio" name="epos" value="ground"> Au sol
+        </label>
+        <label class="radio-label" id="e-lbl-elevated">
+          <input type="radio" name="epos" value="elevated"> En hauteur
+        </label>
+      </div>
+    </div>
+    <div class="form-group">
+      <label>Environnement</label>
+      <div class="radio-group">
+        <label class="radio-label" id="e-lbl-exterior">
+          <input type="radio" name="eenv" value="exterior"> Extérieur
+        </label>
+        <label class="radio-label" id="e-lbl-interior">
+          <input type="radio" name="eenv" value="interior"> Intérieur
+        </label>
+      </div>
+    </div>
+    <div class="form-group">
+      <label>Quantité de plants</label>
+      <input type="number" id="e-quantity" min="1" value="1"/>
+    </div>
+    <div class="form-group">
+      <label>Temps déjà écoulé (minutes)</label>
+      <input type="number" id="e-elapsed" min="0" value="0"/>
+    </div>
+    <div class="form-group">
+      <label>Lieu</label>
+      <input type="text" id="e-location" list="districts-list"/>
+    </div>
+    <div class="form-group">
+      <label>Visibilité</label>
+      <div class="radio-group">
+        <label class="radio-label" id="e-lbl-personal">
+          <input type="radio" name="evis" value="personal"> 🔒 Personnelle
+        </label>
+        <label class="radio-label" id="e-lbl-shared">
+          <input type="radio" name="evis" value="shared"> 👥 Partagée
+        </label>
+      </div>
+    </div>
+    <div class="form-group">
+      <label>Notes (optionnel)</label>
+      <input type="text" id="e-notes"/>
+    </div>
+    <div class="modal-footer">
+      <button class="btn-cancel" id="cancel-edit">Annuler</button>
+      <button class="btn-confirm" id="confirm-edit">Enregistrer</button>
+    </div>
+  </div>
+</div>
+
+<!-- ── Modal: Marchandise ── -->
+<div class="modal-overlay" id="modal-merch">
+  <div class="modal-box">
+    <h2 id="merch-modal-title">Nouvelle marchandise</h2>
+    <input type="hidden" id="m-id"/>
+    <div class="form-group">
+      <label>Nom</label>
+      <input type="text" id="m-name" placeholder="ex: Weed"/>
+    </div>
+    <div class="form-group">
+      <label>Temps de pousse — Extérieur (minutes)</label>
+      <input type="number" id="m-time" min="1" placeholder="60"/>
+    </div>
+    <div class="form-group">
+      <label>Temps de pousse — Intérieur (minutes)</label>
+      <input type="number" id="m-time-interior" min="1" placeholder="60"/>
+    </div>
+    <div class="form-group">
+      <label>Couleur</label>
+      <div class="color-row">
+        <input type="color" id="m-color" value="#4CAF50"/>
+        <span id="m-color-label" style="font-size:.85rem;color:var(--text2)">#4CAF50</span>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn-cancel" id="cancel-merch">Annuler</button>
+      <button class="btn-confirm" id="confirm-merch">Enregistrer</button>
+    </div>
+  </div>
+</div>
+
+<!-- ── Bottom nav (mobile/tablette) ── -->
+<div id="bottom-nav">
+  <button class="bnav-btn" data-tab="map">
+    <span class="bnav-icon">🗺️</span>
+    <span class="bnav-label">Carte</span>
+  </button>
+  <button class="bnav-btn active" data-tab="list">
+    <span class="bnav-icon">🌿</span>
+    <span class="bnav-label">Plants</span>
+  </button>
+  <button class="bnav-btn" data-tab="merchandise">
+    <span class="bnav-icon">📦</span>
+    <span class="bnav-label">Marchés</span>
+  </button>
+  <button class="bnav-btn bnav-admin" data-tab="settings" style="display:none">
+    <span class="bnav-icon">⚙️</span>
+    <span class="bnav-label">Admin</span>
+  </button>
+</div>
+
+<!-- Datalist pour l'autocomplete quartiers -->
+<datalist id="districts-list">
+  <option value="Vinewood"/>
+  <option value="Rockford Hills"/>
+  <option value="Burton"/>
+  <option value="Little Seoul"/>
+  <option value="Strawberry"/>
+  <option value="Davis"/>
+  <option value="Chamberlain Hills"/>
+  <option value="Cypress Flats"/>
+  <option value="La Mesa"/>
+  <option value="LSIA"/>
+  <option value="Vespucci Beach"/>
+  <option value="Del Perro"/>
+  <option value="Morningwood"/>
+  <option value="Pacific Bluffs"/>
+  <option value="Elysian Island"/>
+  <option value="Murrieta Heights"/>
+  <option value="El Burro Heights"/>
+  <option value="Vinewood Hills"/>
+  <option value="Banham Canyon"/>
+  <option value="Tongva Hills"/>
+  <option value="Chumash"/>
+  <option value="Fort Zancudo"/>
+  <option value="Lago Zancudo"/>
+  <option value="Raton Canyon"/>
+  <option value="Tataviam Mountains"/>
+  <option value="Mount Chiliad"/>
+  <option value="Harmony"/>
+  <option value="Grand Senora Desert"/>
+  <option value="Alamo Sea"/>
+  <option value="Grapeseed"/>
+  <option value="Sandy Shores"/>
+  <option value="Mount Gordo"/>
+  <option value="Paleto Forest"/>
+  <option value="Paleto Bay"/>
+  <option value="Palomino Highlands"/>
+</datalist>
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
