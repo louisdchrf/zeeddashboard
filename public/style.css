@@ -709,16 +709,13 @@ nav { display: flex; gap: 4px; }
 .assignee-checkbox:hover { background: var(--surface2); }
 .assignee-checkbox input { accent-color: var(--accent); cursor: pointer; }
 
-.order-items-section {
-  margin-top: 32px;
-  border-top: 1px solid var(--border);
-  padding-top: 20px;
-}
-
 .order-items-list {
   display: flex;
   flex-direction: column;
   gap: 6px;
+  margin-bottom: 12px;
+  max-height: 260px;
+  overflow-y: auto;
 }
 
 .order-item-row {
@@ -730,4 +727,14 @@ nav { display: flex; gap: 4px; }
   border: 1px solid var(--border);
   border-radius: 6px;
   font-size: 0.9rem;
+}
+
+.order-item-add-row {
+  display: flex;
+  gap: 8px;
+  margin-top: 4px;
+}
+
+.order-item-add-row input {
+  flex: 1;
 }

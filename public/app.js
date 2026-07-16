@@ -745,11 +745,14 @@ function renderOrderItemsList() {
   const el = document.getElementById('order-items-list');
   if (!el) return;
   el.innerHTML = orderItems.length === 0
-    ? '<p style="color:var(--text2);font-size:.85rem">Aucun article — ajoute-en un.</p>'
+    ? '<p style="color:var(--text2);font-size:.85rem;padding:8px 0">Aucun article — ajoute-en un ci-dessous.</p>'
     : orderItems.map(item => `
         <div class="order-item-row">
           <span>${escapeHtml(item.name)}</span>
-          <button class="btn-delete" onclick="deleteOrderItem(${item.id})">🗑️</button>
+          <div style="display:flex;gap:6px">
+            <button class="btn-edit" onclick="openEditOrderItemModal(${item.id}, '${escapeHtml(item.name).replace(/'/g, "\\'")}')">✏️</button>
+            <button class="btn-delete" onclick="deleteOrderItem(${item.id})">🗑️</button>
+          </div>
         </div>
       `).join('');
 }
@@ -843,21 +846,48 @@ async function deleteOrder(id) {
 }
 
 // ── Articles commandables (admin) ─────────────────────────────────────────────
-document.getElementById('btn-add-order-item').addEventListener('click', () => {
+document.getElementById('btn-manage-order-items').addEventListener('click', () => {
+  renderOrderItemsList();
   document.getElementById('oi-name').value = '';
-  document.getElementById('modal-order-item').style.display = 'flex';
+  document.getElementById('modal-order-items-mgmt').style.display = 'flex';
 });
 
-document.getElementById('cancel-order-item').addEventListener('click', () => {
-  document.getElementById('modal-order-item').style.display = 'none';
+document.getElementById('close-order-items-mgmt').addEventListener('click', () => {
+  document.getElementById('modal-order-items-mgmt').style.display = 'none';
 });
 
-document.getElementById('confirm-order-item').addEventListener('click', async () => {
+document.getElementById('btn-add-order-item').addEventListener('click', async () => {
   const name = document.getElementById('oi-name').value.trim();
   if (!name) return alert('Nom requis.');
   const r = await api.post('/api/order-items', { name });
   if (r?.error) return alert(r.error);
-  document.getElementById('modal-order-item').style.display = 'none';
+  document.getElementById('oi-name').value = '';
+  await loadOrderItems();
+  renderOrderItemsList();
+  populateOrderItemSelect();
+});
+
+document.getElementById('oi-name').addEventListener('keydown', (e) => {
+  if (e.key === 'Enter') document.getElementById('btn-add-order-item').click();
+});
+
+function openEditOrderItemModal(id, currentName) {
+  document.getElementById('oi-edit-id').value = id;
+  document.getElementById('oi-edit-name').value = currentName;
+  document.getElementById('modal-order-item-edit').style.display = 'flex';
+}
+
+document.getElementById('cancel-order-item-edit').addEventListener('click', () => {
+  document.getElementById('modal-order-item-edit').style.display = 'none';
+});
+
+document.getElementById('confirm-order-item-edit').addEventListener('click', async () => {
+  const id   = document.getElementById('oi-edit-id').value;
+  const name = document.getElementById('oi-edit-name').value.trim();
+  if (!name) return alert('Nom requis.');
+  const r = await api.put(`/api/order-items/${id}`, { name });
+  if (r?.error) return alert(r.error);
+  document.getElementById('modal-order-item-edit').style.display = 'none';
   await loadOrderItems();
   renderOrderItemsList();
   populateOrderItemSelect();
@@ -881,9 +911,5 @@ async function deleteOrderItem(id) {
   await loadOrderItems();
   await loadOrders();
   await loadUsers();
-  if (user.is_admin) {
-    await loadSettings();
-    document.querySelectorAll('.order-items-section').forEach(el => el.style.display = '');
-  }
-  renderOrderItemsList();
+  if (user.is_admin) await loadSettings();
 })();

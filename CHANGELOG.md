@@ -4,6 +4,11 @@ Toutes les modifications notables du projet sont documentées ici.
 
 ---
 
+## v26.0717.0044 — 17/07/2026 à 00:44
+
+Gestion articles commandables : modale dédiée via bouton ⚙️ Articles, ajout inline + édition (renommer) + suppression
+
+
 ## v26.0717.0038 — 17/07/2026 à 00:38
 
 Pseudo Discord : utilise le surnom du serveur (nick) plutôt que le nom de compte global

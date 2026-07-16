@@ -516,6 +516,18 @@ app.post('/api/order-items', requireAdmin, (req, res) => {
   }
 });
 
+app.put('/api/order-items/:id', requireAdmin, (req, res) => {
+  const { name } = req.body;
+  if (!name?.trim()) return res.status(400).json({ error: 'Nom requis' });
+  try {
+    db.prepare('UPDATE order_items SET name=? WHERE id=?').run(name.trim(), req.params.id);
+    res.json({ success: true });
+  } catch (e) {
+    if (e.message.includes('UNIQUE')) return res.status(400).json({ error: 'Cet article existe déjà' });
+    throw e;
+  }
+});
+
 app.delete('/api/order-items/:id', requireAdmin, (req, res) => {
   const hasActive = db.prepare("SELECT id FROM orders WHERE item_id=? AND status='pending'").get(req.params.id);
   if (hasActive) return res.status(400).json({ error: 'Des commandes actives utilisent cet article' });

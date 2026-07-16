@@ -371,7 +371,10 @@
 <div id="tab-orders" class="tab-content">
   <div class="section-header">
     <h2>Commandes</h2>
-    <button class="btn-primary" id="btn-add-order">+ Nouvelle commande</button>
+    <div style="display:flex;gap:8px">
+      <button class="btn-secondary tab-admin" id="btn-manage-order-items" style="display:none">⚙️ Articles</button>
+      <button class="btn-primary" id="btn-add-order">+ Nouvelle commande</button>
+    </div>
   </div>
 
   <table class="plant-table" id="orders-table">
@@ -388,15 +391,6 @@
     </thead>
     <tbody id="orders-body"></tbody>
   </table>
-
-  <!-- Articles commandables (admin) -->
-  <div class="settings-section tab-admin order-items-section" style="display:none">
-    <div class="section-header" style="margin-bottom:12px">
-      <h3 style="margin:0">Articles commandables</h3>
-      <button class="btn-secondary" id="btn-add-order-item">+ Ajouter</button>
-    </div>
-    <div id="order-items-list" class="order-items-list"></div>
-  </div>
 </div>
 
 <!-- ── Modal: Nouvelle / éditer commande ── -->
@@ -427,17 +421,33 @@
   </div>
 </div>
 
-<!-- ── Modal: Ajouter un article commandable ── -->
-<div class="modal-overlay" id="modal-order-item">
+<!-- ── Modal: Gérer les articles commandables (admin) ── -->
+<div class="modal-overlay" id="modal-order-items-mgmt">
+  <div class="modal-box" style="max-width:460px">
+    <h2>Articles commandables</h2>
+    <div id="order-items-list" class="order-items-list"></div>
+    <div class="order-item-add-row">
+      <input type="text" id="oi-name" placeholder="Nom du nouvel article…"/>
+      <button class="btn-primary" id="btn-add-order-item">Ajouter</button>
+    </div>
+    <div class="modal-footer" style="margin-top:16px">
+      <button class="btn-cancel" id="close-order-items-mgmt">Fermer</button>
+    </div>
+  </div>
+</div>
+
+<!-- ── Modal: Renommer un article ── -->
+<div class="modal-overlay" id="modal-order-item-edit">
   <div class="modal-box" style="max-width:380px">
-    <h2>Nouvel article</h2>
+    <h2>Renommer l'article</h2>
+    <input type="hidden" id="oi-edit-id"/>
     <div class="form-group">
-      <label>Nom</label>
-      <input type="text" id="oi-name" placeholder="ex: Rocket Launcher"/>
+      <label>Nouveau nom</label>
+      <input type="text" id="oi-edit-name"/>
     </div>
     <div class="modal-footer">
-      <button class="btn-cancel" id="cancel-order-item">Annuler</button>
-      <button class="btn-confirm" id="confirm-order-item">Ajouter</button>
+      <button class="btn-cancel" id="cancel-order-item-edit">Annuler</button>
+      <button class="btn-confirm" id="confirm-order-item-edit">Enregistrer</button>
     </div>
   </div>
 </div>
