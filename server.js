@@ -159,13 +159,29 @@ app.get('/auth/discord/callback', async (req, res) => {
       }
     }
 
+    // Pseudo affiché : surnom du serveur > display name global > username
+    let displayName = user.global_name || user.username;
+    const guildId   = getSetting('discord_guild_id');
+    const botToken  = getSetting('discord_bot_token');
+    if (guildId && botToken) {
+      try {
+        const memberRes = await fetch(`https://discord.com/api/v10/guilds/${guildId}/members/${user.id}`, {
+          headers: { Authorization: `Bot ${botToken}` },
+        });
+        if (memberRes.ok) {
+          const member = await memberRes.json();
+          if (member.nick) displayName = member.nick;
+        }
+      } catch (_) {}
+    }
+
     const existing = db.prepare('SELECT id FROM users WHERE discord_id=?').get(user.id);
     let userId;
     if (existing) {
-      db.prepare('UPDATE users SET username=?, avatar=? WHERE discord_id=?').run(user.username, user.avatar, user.id);
+      db.prepare('UPDATE users SET username=?, avatar=? WHERE discord_id=?').run(displayName, user.avatar, user.id);
       userId = existing.id;
     } else {
-      const r = db.prepare('INSERT INTO users (discord_id, username, avatar) VALUES (?,?,?)').run(user.id, user.username, user.avatar);
+      const r = db.prepare('INSERT INTO users (discord_id, username, avatar) VALUES (?,?,?)').run(user.id, displayName, user.avatar);
       userId = r.lastInsertRowid;
     }
     req.session.userId = userId;
