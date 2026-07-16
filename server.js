@@ -1,10 +1,11 @@
 const express = require('express');
 const session = require('express-session');
-const { scryptSync, randomBytes, timingSafeEqual } = require('crypto');
+const { scryptSync, randomBytes, timingSafeEqual, webcrypto } = require('crypto');
 const db = require('./db');
 
 const app = express();
-app.use(express.json());
+// Capture du body brut avant parsing (nécessaire pour vérifier la signature Discord)
+app.use(express.json({ verify: (req, _, buf) => { req.rawBody = buf; } }));
 
 // ── Session store (SQLite, aucune dépendance supplémentaire) ──────────────────
 
@@ -419,7 +420,7 @@ app.post('/api/admin/password', requireAdmin, (req, res) => {
   res.json({ success: true });
 });
 
-// ── Notifications Discord bot (toutes les 60s) ────────────────────────────────
+// ── Helpers Discord ───────────────────────────────────────────────────────────
 
 async function botPost(path, body, token) {
   return fetch(`https://discord.com/api/v10${path}`, {
@@ -428,6 +429,93 @@ async function botPost(path, body, token) {
     body: JSON.stringify(body),
   });
 }
+
+async function verifyDiscordSig(rawBody, signature, timestamp, publicKeyHex) {
+  try {
+    const key = await webcrypto.subtle.importKey(
+      'raw', Buffer.from(publicKeyHex, 'hex'), { name: 'Ed25519' }, false, ['verify']
+    );
+    return await webcrypto.subtle.verify(
+      'Ed25519', key,
+      Buffer.from(signature, 'hex'),
+      Buffer.concat([Buffer.from(timestamp), rawBody])
+    );
+  } catch { return false; }
+}
+
+function buildOrderEmbed(orderId, itemName, quantity, status, assigneeNames, deadlineStr) {
+  const statusLabel = { pending: '⏳ En attente', in_progress: '🔄 En cours', done: '✅ Terminée' }[status] || '⏳ En attente';
+  const color       = { pending: 0xe67e22, in_progress: 0x3498db, done: 0x3fb950 }[status] || 0xe67e22;
+
+  const embeds = [{
+    title: '📦 Nouvelle commande !',
+    color,
+    fields: [
+      { name: 'Article',   value: itemName,           inline: true  },
+      { name: 'Quantité',  value: String(quantity),   inline: true  },
+      { name: 'Deadline',  value: deadlineStr,        inline: true  },
+      { name: 'Assigné à', value: assigneeNames,      inline: false },
+      { name: 'Statut',    value: statusLabel,        inline: true  },
+    ],
+  }];
+
+  const components = status !== 'done' ? [{
+    type: 1,
+    components: [
+      ...(status === 'pending' ? [{ type: 2, style: 1, label: '🔄 En cours',  custom_id: `order_inprogress_${orderId}` }] : []),
+      { type: 2, style: 3, label: '✅ Terminée', custom_id: `order_done_${orderId}` },
+    ],
+  }] : [];
+
+  return { embeds, components };
+}
+
+// ── Discord Interactions (boutons dans les messages du bot) ───────────────────
+
+app.post('/discord/interactions', async (req, res) => {
+  const sig       = req.headers['x-signature-ed25519'];
+  const timestamp = req.headers['x-signature-timestamp'];
+  const publicKey = getSetting('discord_public_key');
+
+  if (!publicKey || !sig || !timestamp || !req.rawBody)
+    return res.status(401).end();
+
+  const valid = await verifyDiscordSig(req.rawBody, sig, timestamp, publicKey);
+  if (!valid) return res.status(401).end();
+
+  const body = req.body;
+
+  if (body.type === 1) return res.json({ type: 1 }); // PING
+
+  if (body.type === 3) { // MESSAGE_COMPONENT (bouton)
+    const customId = body.data?.custom_id || '';
+    let orderId, newStatus;
+
+    if (customId.startsWith('order_inprogress_')) {
+      orderId   = parseInt(customId.replace('order_inprogress_', ''));
+      newStatus = 'in_progress';
+      db.prepare("UPDATE orders SET status='in_progress' WHERE id=? AND status='pending'").run(orderId);
+    } else if (customId.startsWith('order_done_')) {
+      orderId   = parseInt(customId.replace('order_done_', ''));
+      newStatus = 'done';
+      db.prepare("UPDATE orders SET status='done' WHERE id=?").run(orderId);
+    } else {
+      return res.json({ type: 1 });
+    }
+
+    const order     = db.prepare('SELECT o.*, oi.name AS item_name FROM orders o JOIN order_items oi ON o.item_id=oi.id WHERE o.id=?').get(orderId);
+    const assignees = db.prepare('SELECT u.username FROM order_assignments oa JOIN users u ON oa.user_id=u.id WHERE oa.order_id=?').all(orderId);
+    const deadlineStr   = order?.deadline ? new Date(order.deadline).toLocaleDateString('fr-FR') : 'Non définie';
+    const assigneeNames = assignees.map(u => u.username).join(', ') || '—';
+
+    return res.json({
+      type: 7, // UPDATE_MESSAGE
+      data: buildOrderEmbed(orderId, order?.item_name || '?', order?.quantity || 1, newStatus, assigneeNames, deadlineStr),
+    });
+  }
+
+  res.json({ type: 1 });
+});
 
 async function getDmChannelId(discordId, token) {
   const r = await botPost('/users/@me/channels', { recipient_id: discordId }, token);
@@ -589,19 +677,9 @@ app.post('/api/orders', async (req, res) => {
         ? new Date(deadline).toLocaleDateString('fr-FR')
         : 'Non définie';
 
-      await botPost(`/channels/${channelId}/messages`, {
-        content: mentions || null,
-        embeds: [{
-          title: '📦 Nouvelle commande !',
-          color: 0xe67e22,
-          fields: [
-            { name: 'Article',    value: item.name,                                         inline: true },
-            { name: 'Quantité',   value: String(quantity),                                  inline: true },
-            { name: 'Deadline',   value: deadlineStr,                                       inline: true },
-            { name: 'Assigné à',  value: assignees.map(u => u.username).join(', ') || '—', inline: false },
-          ],
-        }],
-      }, token);
+      const assigneeNames = assignees.map(u => u.username).join(', ') || '—';
+      const embed = buildOrderEmbed(orderId, item.name, quantity, 'pending', assigneeNames, deadlineStr);
+      await botPost(`/channels/${channelId}/messages`, { content: mentions || null, ...embed }, token);
     } catch (e) {
       console.error('Order notification error:', e.message);
     }
@@ -626,6 +704,13 @@ app.put('/api/orders/:id', (req, res) => {
     const ins = db.prepare('INSERT OR IGNORE INTO order_assignments (order_id, user_id) VALUES (?, ?)');
     for (const uid of user_ids) ins.run(req.params.id, uid);
   }
+  res.json({ success: true });
+});
+
+app.post('/api/orders/:id/progress', (req, res) => {
+  const order = db.prepare('SELECT * FROM orders WHERE id=?').get(req.params.id);
+  if (!order) return res.status(404).json({ error: 'Introuvable' });
+  db.prepare("UPDATE orders SET status='in_progress' WHERE id=? AND status='pending'").run(req.params.id);
   res.json({ success: true });
 });
 

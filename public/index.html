@@ -174,6 +174,11 @@
         <input type="text" id="s-notify-channel-id" placeholder="123456789012345678"/>
         <span class="field-hint">Clic droit sur le salon → Copier l'identifiant (mode développeur activé)</span>
       </div>
+      <div class="form-group">
+        <label>Application Public Key</label>
+        <input type="text" id="s-public-key" placeholder="Depuis discord.com/developers → General Information → Public Key"/>
+        <span class="field-hint">Nécessaire pour les boutons interactifs dans Discord. Interactions Endpoint URL à configurer : <code>https://ton-domaine.com/discord/interactions</code></span>
+      </div>
       <div style="display:flex;gap:8px">
         <button class="btn-primary" id="btn-save-bot">Enregistrer</button>
         <button class="btn-secondary" id="btn-test-bot">Tester le salon</button>

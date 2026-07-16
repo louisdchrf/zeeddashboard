@@ -263,6 +263,7 @@ async function loadSettings() {
   document.getElementById('s-discord-redirect-uri').value = data.discord_redirect_uri || '';
   document.getElementById('s-discord-guild-id').value     = data.discord_guild_id     || '';
   document.getElementById('s-notify-channel-id').value    = data.discord_notify_channel_id || '';
+  document.getElementById('s-public-key').value           = data.discord_public_key || '';
   if (data.discord_bot_token === '***') {
     document.getElementById('s-bot-token').placeholder = '(défini — laisser vide pour conserver)';
   }
@@ -629,7 +630,10 @@ document.getElementById('btn-save-discord').addEventListener('click', async () =
 });
 
 document.getElementById('btn-save-bot').addEventListener('click', async () => {
-  const payload = { discord_notify_channel_id: document.getElementById('s-notify-channel-id').value.trim() };
+  const payload = {
+    discord_notify_channel_id: document.getElementById('s-notify-channel-id').value.trim(),
+    discord_public_key:        document.getElementById('s-public-key').value.trim(),
+  };
   const token = document.getElementById('s-bot-token').value;
   if (token) payload.discord_bot_token = token;
   const r = await api.put('/api/settings', payload);
@@ -718,16 +722,19 @@ function renderOrders() {
           `<span class="assignee-tag">${escapeHtml(u.username)}</span>`
         ).join('');
 
-        const statusBadge = o.status === 'done'
-          ? '<span class="vis-badge shared">✓ Terminée</span>'
-          : '<span class="vis-badge" style="background:rgba(230,126,34,.15);color:#e67e22;border-color:#e67e22">En cours</span>';
+        const statusBadge = {
+          done:        '<span class="vis-badge shared">✅ Terminée</span>',
+          in_progress: '<span class="vis-badge" style="background:rgba(52,152,219,.15);color:#3498db;border-color:#3498db">🔄 En cours</span>',
+          pending:     '<span class="vis-badge" style="background:rgba(230,126,34,.15);color:#e67e22;border-color:#e67e22">⏳ En attente</span>',
+        }[o.status] || '';
 
         const canAct = currentUser?.is_admin || o.created_by === currentUser?.id;
-        const actions = o.status === 'pending'
-          ? `<button class="btn-harvest" onclick="completeOrder(${o.id})">✓ Terminer</button>
+        const actions = o.status === 'done'
+          ? (canAct ? `<button class="btn-delete" onclick="deleteOrder(${o.id})">🗑️</button>` : '')
+          : `${o.status === 'pending' ? `<button class="btn-secondary" style="padding:3px 8px;font-size:.78rem" onclick="progressOrder(${o.id})">🔄</button>` : ''}
+             <button class="btn-harvest" onclick="completeOrder(${o.id})">✅</button>
              ${canAct ? `<button class="btn-edit" onclick="openEditOrderModal(${o.id})">✏️</button>
-             <button class="btn-delete" onclick="deleteOrder(${o.id})">🗑️</button>` : ''}`
-          : `${canAct ? `<button class="btn-delete" onclick="deleteOrder(${o.id})">🗑️</button>` : ''}`;
+             <button class="btn-delete" onclick="deleteOrder(${o.id})">🗑️</button>` : ''}`;
 
         return `<tr class="${o.status === 'done' ? 'order-done' : ''}">
           <td>${escapeHtml(o.item_name)}</td>
@@ -828,6 +835,13 @@ document.getElementById('confirm-order').addEventListener('click', async () => {
   await loadOrders();
   renderOrders();
 });
+
+async function progressOrder(id) {
+  const r = await api.post(`/api/orders/${id}/progress`, {});
+  if (r?.error) return alert(r.error);
+  await loadOrders();
+  renderOrders();
+}
 
 async function completeOrder(id) {
   if (!confirm('Marquer cette commande comme terminée ?')) return;

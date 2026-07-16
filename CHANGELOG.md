@@ -4,6 +4,11 @@ Toutes les modifications notables du projet sont documentées ici.
 
 ---
 
+## v26.0717.0051 — 17/07/2026 à 00:51
+
+Boutons Discord interactifs sur les commandes : 🔄 En cours / ✅ Terminée directement depuis Discord
+
+
 ## v26.0717.0044 — 17/07/2026 à 00:44
 
 Gestion articles commandables : modale dédiée via bouton ⚙️ Articles, ajout inline + édition (renommer) + suppression
