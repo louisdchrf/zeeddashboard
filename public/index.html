@@ -63,6 +63,7 @@
     <button class="tab-btn" data-tab="merchandise">Marchandises</button>
     <button class="tab-btn active" data-tab="list">Plants actifs</button>
     <button class="tab-btn" data-tab="orders">Commandes</button>
+    <button class="tab-btn" data-tab="inventory">Inventaire</button>
     <button class="tab-btn tab-admin" data-tab="settings" style="display:none">Paramètres</button>
   </nav>
   <div class="user-info">
@@ -398,6 +399,14 @@
   </table>
 </div>
 
+<!-- ── TAB: Inventaire ── -->
+<div id="tab-inventory" class="tab-content">
+  <div class="section-header">
+    <h2>Inventaire</h2>
+  </div>
+  <div id="inventory-grid" class="inventory-grid"></div>
+</div>
+
 <!-- ── Modal: Nouvelle / éditer commande ── -->
 <div class="modal-overlay" id="modal-order">
   <div class="modal-box">
@@ -474,6 +483,10 @@
   <button class="bnav-btn" data-tab="orders">
     <span class="bnav-icon">🛒</span>
     <span class="bnav-label">Commandes</span>
+  </button>
+  <button class="bnav-btn" data-tab="inventory">
+    <span class="bnav-icon">📋</span>
+    <span class="bnav-label">Inventaire</span>
   </button>
   <button class="bnav-btn bnav-admin" data-tab="settings" style="display:none">
     <span class="bnav-icon">⚙️</span>

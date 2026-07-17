@@ -43,8 +43,9 @@ db.exec(`
   );
 
   CREATE TABLE IF NOT EXISTS order_items (
-    id   INTEGER PRIMARY KEY AUTOINCREMENT,
-    name TEXT NOT NULL UNIQUE
+    id       INTEGER PRIMARY KEY AUTOINCREMENT,
+    name     TEXT NOT NULL UNIQUE,
+    category TEXT DEFAULT NULL
   );
 
   CREATE TABLE IF NOT EXISTS orders (
@@ -62,6 +63,13 @@ db.exec(`
     user_id  INTEGER NOT NULL REFERENCES users(id),
     PRIMARY KEY (order_id, user_id)
   );
+
+  CREATE TABLE IF NOT EXISTS inventory (
+    item_id    INTEGER PRIMARY KEY REFERENCES order_items(id) ON DELETE CASCADE,
+    quantity   INTEGER NOT NULL DEFAULT 0,
+    updated_by INTEGER REFERENCES users(id),
+    updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+  );
 `);
 
 // Migrations idempotentes
@@ -74,6 +82,7 @@ try { db.exec(`ALTER TABLE users ADD COLUMN is_admin INTEGER DEFAULT 0`); } catc
 try { db.exec(`ALTER TABLE points ADD COLUMN location_name TEXT DEFAULT ''`); } catch (_) {}
 try { db.exec(`ALTER TABLE points ADD COLUMN visibility TEXT DEFAULT 'shared'`); } catch (_) {}
 try { db.exec(`ALTER TABLE points ADD COLUMN on_map INTEGER DEFAULT 1`); } catch (_) {}
+try { db.exec(`ALTER TABLE order_items ADD COLUMN category TEXT DEFAULT NULL`); } catch (_) {}
 
 // Valeur par défaut = même que l'extérieur pour les marchandises existantes
 db.exec(`UPDATE merchandise SET grow_time_interior = grow_time_minutes WHERE grow_time_interior IS NULL`);
@@ -89,5 +98,32 @@ if (count.c === 0) {
   ins.run('Cocaine', 120, '#FF9800');
   ins.run('Crack',   30,  '#9C27B0');
 }
+
+// Produits commandables — upsert (insère si absent, met à jour la catégorie si manquante)
+const upsertItem = db.prepare(`
+  INSERT INTO order_items (name, category) VALUES (?, ?)
+  ON CONFLICT(name) DO UPDATE SET category = excluded.category WHERE order_items.category IS NULL
+`);
+db.transaction(() => {
+  [
+    ['Sachet de Psilocybine',      'Psilocybine'],
+    ['Caisse de Psilocybine',      'Psilocybine'],
+    ['Gâteau spatial Psilocybine', 'Psilocybine'],
+    ['Patch reposant',             'Psilocybine'],
+    ['Sachet de Zeed',             'Zeed'],
+    ['Caisse de Zeed',             'Zeed'],
+    ['Joint de Zeed',              'Zeed'],
+    ['Sachet de Pandoxine',        'Pandoxine'],
+    ['Caisse de Pandoxine',        'Pandoxine'],
+    ['Cookies relaxant',           'Pandoxine'],
+    ['Cachet de Pandoxine',        'Pandoxine'],
+    ['Boisson apaisante',          'Krakenine'],
+    ['Sachet de Krakenine',        'Krakenine'],
+    ['Caisse de Krakenine',        'Krakenine'],
+    ['Seringue de Krakenine',      'Krakenine'],
+    ['Sachet de Virus-Z',          'Virus-Z'],
+    ['Seringue de Virus-Z',        'Virus-Z'],
+  ].forEach(([n, c]) => upsertItem.run(n, c));
+})();
 
 module.exports = db;

@@ -104,9 +104,10 @@ function switchTab(tab) {
   document.querySelectorAll('.bnav-btn').forEach(b => b.classList.toggle('active', b.dataset.tab === tab));
   document.querySelectorAll('.tab-content').forEach(t => t.classList.remove('active'));
   document.getElementById('tab-' + tab).classList.add('active');
-  if (tab === 'map')    map.invalidateSize();
-  if (tab === 'list')   renderList();
-  if (tab === 'orders') renderOrders();
+  if (tab === 'map')       map.invalidateSize();
+  if (tab === 'list')      renderList();
+  if (tab === 'orders')    renderOrders();
+  if (tab === 'inventory') renderInventory();
 }
 
 document.querySelectorAll('.tab-btn, .bnav-btn').forEach(btn =>
@@ -686,6 +687,64 @@ setInterval(async () => {
   if (document.querySelector('.leaflet-popup')) points.forEach(p => refreshPopup(p.id));
 }, 60_000);
 
+// ── Inventaire ────────────────────────────────────────────────────────────────
+let inventory = [];
+
+async function loadInventory() {
+  inventory = await api.get('/api/inventory') || [];
+}
+
+function renderInventory() {
+  const grid = document.getElementById('inventory-grid');
+  if (!grid) return;
+
+  if (inventory.length === 0) {
+    grid.innerHTML = '<p style="color:var(--text2);padding:24px">Aucun article configuré.</p>';
+    return;
+  }
+
+  // Grouper par catégorie (ordre d'apparition)
+  const groups = {};
+  const groupOrder = [];
+  for (const item of inventory) {
+    const cat = item.category || 'Autres';
+    if (!groups[cat]) { groups[cat] = []; groupOrder.push(cat); }
+    groups[cat].push(item);
+  }
+
+  grid.innerHTML = groupOrder.map(cat => `
+    <div class="inv-group">
+      <h3 class="inv-group-title">${escapeHtml(cat)}</h3>
+      <div class="inv-group-items">
+        ${groups[cat].map(item => `
+          <div class="inv-item" data-id="${item.id}">
+            <div class="inv-item-name">${escapeHtml(item.name)}</div>
+            <div class="inv-item-qty" id="inv-qty-${item.id}">${item.quantity}</div>
+            <div class="inv-item-controls">
+              <button class="inv-btn inv-minus" onclick="adjustInventory(${item.id}, -1)">−</button>
+              <input class="inv-adj" type="number" id="inv-adj-${item.id}" value="1" min="1" max="999"/>
+              <button class="inv-btn inv-plus" onclick="adjustInventory(${item.id}, +1)">+</button>
+            </div>
+            ${item.updated_at ? `<div class="inv-item-meta">màj ${item.updated_by_name ? escapeHtml(item.updated_by_name) + ' · ' : ''}${new Date(item.updated_at + 'Z').toLocaleDateString('fr-FR')}</div>` : ''}
+          </div>
+        `).join('')}
+      </div>
+    </div>
+  `).join('');
+}
+
+async function adjustInventory(itemId, direction) {
+  const adj = parseInt(document.getElementById(`inv-adj-${itemId}`)?.value) || 1;
+  const delta = direction * adj;
+  const r = await api.put(`/api/inventory/${itemId}`, { delta });
+  if (r?.error) return alert(r.error);
+  // Mise à jour locale immédiate
+  const item = inventory.find(i => i.id === itemId);
+  if (item) item.quantity = r.quantity;
+  const el = document.getElementById(`inv-qty-${itemId}`);
+  if (el) el.textContent = r.quantity;
+}
+
 // ── Commandes ─────────────────────────────────────────────────────────────────
 let orderItems = [];
 let orders     = [];
@@ -925,5 +984,6 @@ async function deleteOrderItem(id) {
   await loadOrderItems();
   await loadOrders();
   await loadUsers();
+  await loadInventory();
   if (user.is_admin) await loadSettings();
 })();

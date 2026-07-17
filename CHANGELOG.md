@@ -4,6 +4,11 @@ Toutes les modifications notables du projet sont documentées ici.
 
 ---
 
+## v26.0717.1245 — 17/07/2026 à 12:45
+
+Onglet Inventaire + liste produits commandables forcée (Psilocybine, Zeed, Pandoxine, Krakenine, Virus-Z) avec catégories
+
+
 ## v26.0717.0055 — 17/07/2026 à 00:55
 
 Logging interactions Discord pour diagnostiquer les erreurs de boutons

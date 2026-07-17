@@ -592,6 +592,39 @@ setInterval(async () => {
   }
 }, 60_000);
 
+// ── Inventaire ────────────────────────────────────────────────────────────────
+
+app.get('/api/inventory', (_, res) => {
+  res.json(db.prepare(`
+    SELECT oi.id, oi.name, oi.category,
+           COALESCE(inv.quantity, 0) AS quantity,
+           inv.updated_at,
+           u.username AS updated_by_name
+    FROM order_items oi
+    LEFT JOIN inventory inv ON inv.item_id = oi.id
+    LEFT JOIN users u ON inv.updated_by = u.id
+    ORDER BY oi.id
+  `).all());
+});
+
+app.put('/api/inventory/:itemId', (req, res) => {
+  const { delta } = req.body;
+  if (typeof delta !== 'number') return res.status(400).json({ error: 'delta requis' });
+  const item = db.prepare('SELECT id FROM order_items WHERE id=?').get(req.params.itemId);
+  if (!item) return res.status(404).json({ error: 'Article introuvable' });
+  const current = db.prepare('SELECT quantity FROM inventory WHERE item_id=?').get(req.params.itemId);
+  const newQty = Math.max(0, (current?.quantity || 0) + delta);
+  db.prepare(`
+    INSERT INTO inventory (item_id, quantity, updated_by, updated_at)
+    VALUES (?, ?, ?, datetime('now'))
+    ON CONFLICT(item_id) DO UPDATE SET
+      quantity   = excluded.quantity,
+      updated_by = excluded.updated_by,
+      updated_at = excluded.updated_at
+  `).run(req.params.itemId, newQty, req.session.userId);
+  res.json({ quantity: newQty });
+});
+
 // ── Users list (pour assignation des commandes) ───────────────────────────────
 app.get('/api/users', (_, res) => {
   res.json(db.prepare('SELECT id, username, avatar, discord_id FROM users ORDER BY username').all());
