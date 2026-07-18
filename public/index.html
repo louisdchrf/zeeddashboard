@@ -213,14 +213,19 @@
         <span class="field-hint">Depuis le portail développeur Discord → Bot → Token</span>
       </div>
       <div class="form-group">
-        <label>ID Salon (plantations partagées)</label>
+        <label>ID Salon — Logs plantations</label>
         <input type="text" id="s-notify-channel-id" placeholder="123456789012345678"/>
-        <span class="field-hint">Clic droit sur le salon → Copier l'identifiant (mode développeur activé)</span>
+        <span class="field-hint">Notifications de récolte et plantations prêtes.</span>
+      </div>
+      <div class="form-group">
+        <label>ID Salon — Commandes</label>
+        <input type="text" id="s-orders-channel-id" placeholder="123456789012345678"/>
+        <span class="field-hint">Messages de commandes avec boutons interactifs.</span>
       </div>
       <div class="form-group">
         <label>Application Public Key</label>
         <input type="text" id="s-public-key" placeholder="Depuis discord.com/developers → General Information → Public Key"/>
-        <span class="field-hint">Nécessaire pour les boutons interactifs dans Discord. Interactions Endpoint URL à configurer : <code>https://ton-domaine.com/discord/interactions</code></span>
+        <span class="field-hint">Nécessaire pour les boutons interactifs dans Discord. Interactions Endpoint URL : <code>https://ton-domaine.com/discord/interactions</code></span>
       </div>
       <div style="display:flex;gap:8px">
         <button class="btn-primary" id="btn-save-bot">Enregistrer</button>

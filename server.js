@@ -865,9 +865,9 @@ app.post('/api/orders', async (req, res) => {
   const insAssign = db.prepare('INSERT OR IGNORE INTO order_assignments (order_id, user_id) VALUES (?, ?)');
   for (const uid of user_ids) insAssign.run(orderId, uid);
 
-  // Notification Discord
+  // Notification Discord (salon commandes)
   const token     = getSetting('discord_bot_token');
-  const channelId = getSetting('discord_notify_channel_id');
+  const channelId = getSetting('discord_orders_channel_id') || getSetting('discord_notify_channel_id');
   if (token && channelId) {
     try {
       const assignees = db.prepare(`
@@ -924,7 +924,7 @@ app.put('/api/orders/:id', (req, res) => {
 
   // Patch du message Discord si le statut a changé
   const token     = getSetting('discord_bot_token');
-  const channelId = getSetting('discord_notify_channel_id');
+  const channelId = getSetting('discord_orders_channel_id') || getSetting('discord_notify_channel_id');
   if (token && channelId && newStatus !== order.status) {
     patchOrderMessage(req.params.id, token, channelId).catch(() => {});
   }
@@ -946,7 +946,7 @@ app.patch('/api/orders/:id/status', async (req, res) => {
 
   // Patch message Discord
   const token     = getSetting('discord_bot_token');
-  const channelId = getSetting('discord_notify_channel_id');
+  const channelId = getSetting('discord_orders_channel_id') || getSetting('discord_notify_channel_id');
   if (token && channelId && order.discord_message_id) {
     patchOrderMessage(req.params.id, token, channelId).catch(() => {});
   }

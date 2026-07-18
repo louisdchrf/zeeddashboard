@@ -271,6 +271,7 @@ async function loadSettings() {
   document.getElementById('s-discord-redirect-uri').value = data.discord_redirect_uri || '';
   document.getElementById('s-discord-guild-id').value     = data.discord_guild_id     || '';
   document.getElementById('s-notify-channel-id').value    = data.discord_notify_channel_id || '';
+  document.getElementById('s-orders-channel-id').value   = data.discord_orders_channel_id || '';
   document.getElementById('s-public-key').value           = data.discord_public_key || '';
   if (data.discord_bot_token === '***') {
     document.getElementById('s-bot-token').placeholder = '(défini — laisser vide pour conserver)';
@@ -640,6 +641,7 @@ document.getElementById('btn-save-discord').addEventListener('click', async () =
 document.getElementById('btn-save-bot').addEventListener('click', async () => {
   const payload = {
     discord_notify_channel_id: document.getElementById('s-notify-channel-id').value.trim(),
+    discord_orders_channel_id: document.getElementById('s-orders-channel-id').value.trim(),
     discord_public_key:        document.getElementById('s-public-key').value.trim(),
   };
   const token = document.getElementById('s-bot-token').value;
