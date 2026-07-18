@@ -1058,12 +1058,8 @@ function renderOrders() {
             <option value="done"        ${o.status==='done'        ? 'selected':''}>✅ Terminée</option>
           </select>`;
 
-        // Commandes admin : seul admin peut supprimer. Commandes user : tout le monde peut.
-        const canDelete = currentUser?.is_admin || !o.created_by_is_admin;
         const stopProp = `event.stopPropagation();`;
-        const actions = canDelete
-          ? `<button class="btn-icon danger" onclick="${stopProp}deleteOrder(${o.id})">🗑️</button>`
-          : '';
+        const actions = `<button class="btn-icon danger" onclick="${stopProp}deleteOrder(${o.id})">🗑️</button>`;
 
         return `<tr class="${o.status === 'done' ? 'order-done' : ''} order-row" onclick="openEditOrderModal(${o.id})">
           <td>${escapeHtml(o.item_name)}</td>

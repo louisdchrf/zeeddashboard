@@ -976,10 +976,6 @@ app.post('/api/orders/:id/complete', (req, res) => {
 app.delete('/api/orders/:id', (req, res) => {
   const order = db.prepare('SELECT * FROM orders WHERE id=?').get(req.params.id);
   if (!order) return res.status(404).json({ error: 'Introuvable' });
-  const user = db.prepare('SELECT is_admin FROM users WHERE id=?').get(req.session.userId);
-  const creator = order.created_by ? db.prepare('SELECT is_admin FROM users WHERE id=?').get(order.created_by) : null;
-  if (creator?.is_admin && !user?.is_admin)
-    return res.status(403).json({ error: 'Seul un admin peut supprimer cette commande' });
   db.prepare('DELETE FROM orders WHERE id=?').run(req.params.id);
   broadcast('orders:changed', {});
   res.json({ success: true });
