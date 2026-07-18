@@ -110,7 +110,6 @@ function switchTab(tab) {
   if (tab === 'orders')    renderOrders();
   if (tab === 'inventory') renderInventory();
   if (tab === 'recipes')   renderRecipes();
-  if (tab === 'contracts') renderContracts();
   if (tab === 'stats')     loadAndRenderStats();
 }
 
@@ -718,12 +717,6 @@ function initSocket() {
     if (recTab?.classList.contains('active')) renderRecipes();
   });
 
-  socket.on('contracts:changed', async () => {
-    await loadContracts();
-    const cTab = document.getElementById('tab-contracts');
-    if (cTab?.classList.contains('active')) renderContracts();
-  });
-
   socket.on('users:online', (users) => renderPresence(users));
 }
 
@@ -984,25 +977,6 @@ async function loadAndRenderStats() {
       </div>`;
     }).join('');
 
-  // Stats ventes par produit (contrats)
-  const salesData = await api.get('/api/contracts/stats') || [];
-  const salesEl = document.getElementById('stats-by-product');
-  if (salesEl) {
-    if (salesData.length === 0) {
-      salesEl.innerHTML = '<p class="empty-state">Aucune donnée — crée des contrats avec des livraisons</p>';
-    } else {
-      const maxRev = Math.max(...salesData.map(s => s.total_revenue), 1);
-      salesEl.innerHTML = salesData.map(s => `
-        <div class="bar-row">
-          <span class="bar-label">${escapeHtml(s.product_name)}</span>
-          <div class="bar-track">
-            <div class="bar-fill" style="width:${Math.round((s.total_revenue / maxRev) * 100)}%;background:var(--accent)"></div>
-          </div>
-          <span class="bar-val">$${s.total_revenue.toLocaleString('fr-FR')} <span style="color:var(--text2);font-size:.75rem">(${s.total_delivered} livrés)</span></span>
-        </div>
-      `).join('');
-    }
-  }
 }
 
 // ── Recettes ──────────────────────────────────────────────────────────────────
@@ -1106,8 +1080,13 @@ function renderOrders() {
   }
 
   tbody.innerHTML = filtered.length === 0
-    ? '<tr><td colspan="8" style="text-align:center;color:var(--text2);padding:24px">Aucune commande</td></tr>'
+    ? '<tr><td colspan="7" style="text-align:center;color:var(--text2);padding:24px">Aucun contrat</td></tr>'
     : filtered.map(o => {
+        const lines = o.lines || [];
+        const articlesHtml = lines.length > 0
+          ? lines.map(l => `<span class="order-line-tag">${escapeHtml(l.item_name)} <b>×${l.quantity}</b></span>`).join('')
+          : '<span style="color:var(--text2)">—</span>';
+
         const deadline = o.deadline
           ? new Date(o.deadline).toLocaleDateString('fr-FR')
           : '<span style="color:var(--text2)">—</span>';
@@ -1123,7 +1102,7 @@ function renderOrders() {
             <option value="pending"     ${o.status==='pending'     ? 'selected':''}>⏳ En attente</option>
             <option value="in_progress" ${o.status==='in_progress' ? 'selected':''}>🔄 En cours</option>
             <option value="to_deliver"  ${o.status==='to_deliver'  ? 'selected':''}>📦 À livrer</option>
-            <option value="done"        ${o.status==='done'        ? 'selected':''}>✅ Terminée</option>
+            <option value="done"        ${o.status==='done'        ? 'selected':''}>✅ Terminé</option>
           </select>`;
 
         const stopProp = `event.stopPropagation();`;
@@ -1133,8 +1112,7 @@ function renderOrders() {
           : '';
 
         return `<tr class="${o.status === 'done' ? 'order-done' : ''} order-row" onclick="openEditOrderModal(${o.id})">
-          <td>${escapeHtml(o.item_name)}</td>
-          <td>${o.quantity}</td>
+          <td><div class="order-lines-cell">${articlesHtml}</div></td>
           <td>${o.client ? `<span class="client-tag">${escapeHtml(o.client)}</span>` : '<span style="color:var(--text2)">—</span>'}</td>
           <td>${deadline}</td>
           <td>${assignees || '—'}</td>
@@ -1192,12 +1170,78 @@ function renderOrderItemsList() {
 }
 
 function populateOrderItemSelect(selectedId = null) {
-  const sel = document.getElementById('o-item');
-  sel.innerHTML = orderItems.length === 0
-    ? '<option value="">— Aucun article disponible —</option>'
-    : orderItems.map(i =>
-        `<option value="${i.id}" ${i.id == selectedId ? 'selected' : ''}>${escapeHtml(i.name)}</option>`
-      ).join('');
+  // legacy – plus utilisé mais conservé au cas où
+}
+
+function populateAllLineSelects() {
+  const opts = '<option value="">— Choisir —</option>' +
+    orderItems.map(i => `<option value="${i.id}">${escapeHtml(i.name)}</option>`).join('');
+  document.querySelectorAll('.o-line-item').forEach(sel => {
+    const current = sel.value;
+    sel.innerHTML = opts;
+    if (current) sel.value = current;
+  });
+}
+
+function setOrderLines(lines = []) {
+  for (let i = 0; i < 5; i++) {
+    const sel = document.querySelector(`.o-line-item[data-idx="${i}"]`);
+    const qty = document.querySelector(`.o-line-qty[data-idx="${i}"]`);
+    const l = lines[i] || null;
+    if (sel) sel.value = l?.item_id || '';
+    if (qty) qty.value = l?.quantity ?? 1;
+  }
+}
+
+function getOrderLines() {
+  const lines = [];
+  for (let i = 0; i < 5; i++) {
+    const sel = document.querySelector(`.o-line-item[data-idx="${i}"]`);
+    const qty = document.querySelector(`.o-line-qty[data-idx="${i}"]`);
+    const item_id = parseInt(sel?.value);
+    if (item_id) lines.push({ item_id, quantity: parseInt(qty?.value) || 1 });
+  }
+  return lines;
+}
+
+function switchOrderModalTab(tab) {
+  document.getElementById('o-tab-details').style.display = tab === 'details' ? '' : 'none';
+  document.getElementById('o-tab-history').style.display = tab === 'history' ? '' : 'none';
+  document.querySelectorAll('.modal-subtab').forEach(b => b.classList.toggle('active', b.textContent.toLowerCase().includes(tab === 'details' ? 'détail' : 'histor')));
+  if (tab === 'history') loadOrderHistory();
+}
+
+async function loadOrderHistory() {
+  const id = document.getElementById('o-id').value;
+  if (!id) return;
+  const events = await api.get(`/api/orders/${id}/events`) || [];
+  const el = document.getElementById('o-events-list');
+  if (!el) return;
+  const labels = {
+    created:        { icon: '📋', text: 'Contrat créé' },
+    status_changed: { icon: '🔄', text: null },
+  };
+  const statusText = {
+    pending:     '⏳ En attente',
+    in_progress: '🔄 En cours',
+    to_deliver:  '📦 À livrer',
+    done:        '✅ Terminé',
+  };
+  el.innerHTML = events.length === 0
+    ? '<p style="color:var(--text2);padding:16px 0">Aucun historique.</p>'
+    : events.map(e => {
+        const d = new Date(e.created_at + 'Z');
+        const dateStr = d.toLocaleDateString('fr-FR') + ' ' + d.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
+        const info = labels[e.event_type] || { icon: '•', text: e.event_type };
+        const label = info.text || (e.new_status ? `Passé → ${statusText[e.new_status] || e.new_status}` : '');
+        const by = e.user_name ? ` <span class="ev-by">par ${escapeHtml(e.user_name)}</span>` : '';
+        return `<div class="order-event-row">
+          <span class="ev-icon">${info.icon}</span>
+          <span class="ev-label">${label}</span>
+          ${by}
+          <span class="ev-time">${dateStr}</span>
+        </div>`;
+      }).join('');
 }
 
 function populateAssigneeCheckboxes(selectedIds = []) {
@@ -1249,67 +1293,59 @@ function updateOrderIngredientsPreview() {
 
 function openNewOrderModal() {
   document.getElementById('o-id').value = '';
-  document.getElementById('order-modal-title').textContent = 'Nouvelle commande';
-  document.getElementById('o-quantity').value = 1;
+  document.getElementById('order-modal-title').textContent = 'Nouveau contrat';
   document.getElementById('o-deadline').value = '';
-  // S'assurer que les champs sont activés
-  ['o-item', 'o-quantity', 'o-deadline'].forEach(id => {
-    const el = document.getElementById(id);
-    if (el) el.disabled = false;
-  });
+  document.getElementById('o-client').value = '';
   document.getElementById('confirm-order').style.display = '';
   document.getElementById('o-status-group').style.display = 'none';
   const spg = document.getElementById('o-sale-price-group');
   if (spg) { spg.style.display = 'none'; document.getElementById('o-sale-price').value = ''; }
-  document.getElementById('o-client').value = '';
-  populateOrderItemSelect();
+  const histBtn = document.getElementById('o-tab-history-btn');
+  if (histBtn) histBtn.style.display = 'none';
+  switchOrderModalTab('details');
+  document.querySelectorAll('.o-line-item, .o-line-qty').forEach(el => { el.disabled = false; });
+  populateAllLineSelects();
+  setOrderLines([]);
   populateAssigneeCheckboxes();
   document.getElementById('modal-order').style.display = 'flex';
-  updateOrderIngredientsPreview();
 }
 
 function openEditOrderModal(id) {
   const o = orders.find(x => x.id === id);
   if (!o) return;
-  // Commandes admin → seul admin peut modifier. Commandes user → tout le monde peut modifier.
   const canAct = currentUser?.is_admin || !o.created_by_is_admin;
 
   document.getElementById('o-id').value = id;
-  document.getElementById('order-modal-title').textContent = canAct ? 'Modifier la commande' : 'Détails de la commande';
-  document.getElementById('o-quantity').value = o.quantity;
+  document.getElementById('order-modal-title').textContent = canAct ? 'Modifier le contrat' : 'Détail du contrat';
   document.getElementById('o-deadline').value = o.deadline ? o.deadline.slice(0, 10) : '';
   document.getElementById('o-client').value = o.client || '';
-
-  // Champs en lecture seule si pas de droits
-  ['o-item', 'o-quantity', 'o-deadline', 'o-status'].forEach(fieldId => {
-    const el = document.getElementById(fieldId);
-    if (el) el.disabled = !canAct;
-  });
   document.getElementById('confirm-order').style.display = canAct ? '' : 'none';
 
-  // Statut — visible uniquement en mode édition
-  const statusGroup = document.getElementById('o-status-group');
-  statusGroup.style.display = '';
+  // Statut
+  document.getElementById('o-status-group').style.display = '';
   document.getElementById('o-status').value = o.status || 'pending';
 
-  // Prix de vente — visible si statut = done
+  // Prix de vente
   const salePriceGroup = document.getElementById('o-sale-price-group');
   if (salePriceGroup) {
     salePriceGroup.style.display = o.status === 'done' ? '' : 'none';
     document.getElementById('o-sale-price').value = o.sale_price ?? '';
   }
 
-  populateOrderItemSelect(o.item_id);
+  // Historique
+  const histBtn = document.getElementById('o-tab-history-btn');
+  if (histBtn) histBtn.style.display = '';
+  switchOrderModalTab('details');
+
+  // Lignes
+  populateAllLineSelects();
+  setOrderLines(o.lines || []);
+  document.querySelectorAll('.o-line-item, .o-line-qty').forEach(el => { el.disabled = !canAct; });
+
   populateAssigneeCheckboxes(o.assignees.map(u => u.id));
-  if (!canAct) {
-    document.querySelectorAll('#o-assignees input').forEach(cb => cb.disabled = true);
-  }
+  if (!canAct) document.querySelectorAll('#o-assignees input').forEach(cb => cb.disabled = true);
 
   document.getElementById('modal-order').style.display = 'flex';
-
-  const sel = document.getElementById('o-item');
-  if (sel) sel.value = o.item_id;
-  updateOrderIngredientsPreview();
 }
 
 function onOrderStatusChange(val) {
@@ -1349,20 +1385,19 @@ document.getElementById('o-quantity')?.addEventListener('input', updateOrderIngr
 
 document.getElementById('confirm-order').addEventListener('click', async () => {
   const id       = document.getElementById('o-id').value;
-  const item_id  = document.getElementById('o-item').value;
-  const quantity = parseInt(document.getElementById('o-quantity').value) || 1;
   const deadline = document.getElementById('o-deadline').value || null;
   const user_ids = [...document.querySelectorAll('#o-assignees input[type=checkbox]:checked')]
     .map(cb => parseInt(cb.value));
+  const lines    = getOrderLines();
 
-  if (!item_id) return alert('Sélectionne un article.');
-  if (user_ids.length === 0) return alert('Assigne la commande à au moins une personne.');
+  if (lines.length === 0) return alert('Ajoute au moins un article.');
+  if (user_ids.length === 0) return alert('Assigne le contrat à au moins une personne.');
 
   const status = document.getElementById('o-status')?.value || 'pending';
   const client = document.getElementById('o-client')?.value?.trim() || null;
   const salePriceRaw = document.getElementById('o-sale-price')?.value?.trim();
   const sale_price = status === 'done' && salePriceRaw !== '' ? (parseInt(salePriceRaw) || null) : null;
-  const body = { item_id: parseInt(item_id), quantity, deadline, user_ids, status, client, sale_price };
+  const body = { lines, deadline, user_ids, status, client, sale_price };
   const r = id
     ? await api.put(`/api/orders/${id}`, body)
     : await api.post('/api/orders', body);
@@ -1575,206 +1610,6 @@ function updateNotifyBtn() {
   btn.classList.toggle('notify-off', !discordNotifyEnabled);
 }
 
-// ── Contrats ──────────────────────────────────────────────────────────────────
-
-let contracts = [];
-let currentContractDetailId = null;
-
-async function loadContracts() {
-  contracts = await api.get('/api/contracts') || [];
-}
-
-function renderContracts() {
-  const el = document.getElementById('contracts-list');
-  if (!el) return;
-  if (contracts.length === 0) {
-    el.innerHTML = '<p style="color:var(--text2);padding:24px">Aucun contrat. Crée-en un avec le bouton ci-dessus.</p>';
-    return;
-  }
-  const active = contracts.filter(c => c.status === 'active');
-  const closed = contracts.filter(c => c.status === 'closed');
-  function renderGroup(list, title) {
-    if (list.length === 0) return '';
-    return `<div class="contracts-group">
-      <div class="contracts-group-title">${title}</div>
-      ${list.map(renderContractRow).join('')}
-    </div>`;
-  }
-  el.innerHTML = renderGroup(active, 'En cours') + renderGroup(closed, 'Clôturés');
-}
-
-function renderContractRow(c) {
-  const progress = c.total_value > 0 ? Math.round((c.delivered_value / c.total_value) * 100) : 0;
-  const deadline = c.deadline ? new Date(c.deadline).toLocaleDateString('fr-FR') : '—';
-  const isClosed = c.status === 'closed';
-  const totalFmt = c.total_value ? `$${c.total_value.toLocaleString('fr-FR')}` : '—';
-  const delivFmt = c.delivered_value ? `$${c.delivered_value.toLocaleString('fr-FR')}` : '$0';
-  return `<div class="contract-row${isClosed ? ' contract-closed' : ''}">
-    <div class="contract-row-main">
-      <div class="contract-row-info">
-        <span class="contract-name">${escapeHtml(c.name)}</span>
-        ${c.client ? `<span class="contract-client">👤 ${escapeHtml(c.client)}</span>` : ''}
-        <span class="contract-deadline">📅 ${deadline}</span>
-        <span class="contract-lines-count">${c.line_count} ligne${c.line_count !== 1 ? 's' : ''}</span>
-      </div>
-      <div class="contract-row-money">
-        <span class="contract-money-delivered">${delivFmt}</span>
-        <span class="contract-money-sep">/</span>
-        <span class="contract-money-total">${totalFmt}</span>
-      </div>
-    </div>
-    ${c.total_value > 0 ? `<div class="contract-progress-bar"><div class="contract-progress-fill" style="width:${progress}%"></div></div>` : ''}
-    <div class="contract-row-actions">
-      <button class="btn-secondary btn-sm" onclick="openContractDetail(${c.id})">Détails</button>
-      <button class="btn-secondary btn-sm" onclick="openEditContractModal(${c.id})" title="Modifier">✏️</button>
-      <button class="btn-secondary btn-sm" onclick="toggleContractStatus(${c.id})">${isClosed ? '🔓 Rouvrir' : '🔒 Clôturer'}</button>
-      <button class="btn-icon danger" onclick="deleteContract(${c.id})" title="Supprimer">🗑️</button>
-    </div>
-    ${c.notes ? `<div class="contract-notes">${escapeHtml(c.notes)}</div>` : ''}
-  </div>`;
-}
-
-document.getElementById('btn-add-contract').addEventListener('click', () => {
-  document.getElementById('contract-modal-title').textContent = 'Nouveau contrat';
-  document.getElementById('c-id').value = '';
-  document.getElementById('c-name').value = '';
-  document.getElementById('c-client').value = '';
-  document.getElementById('c-deadline').value = '';
-  document.getElementById('c-notes').value = '';
-  document.getElementById('modal-contract').style.display = 'flex';
-});
-
-function openEditContractModal(id) {
-  const c = contracts.find(x => x.id === id);
-  if (!c) return;
-  document.getElementById('contract-modal-title').textContent = 'Modifier le contrat';
-  document.getElementById('c-id').value = c.id;
-  document.getElementById('c-name').value = c.name;
-  document.getElementById('c-client').value = c.client || '';
-  document.getElementById('c-deadline').value = c.deadline ? c.deadline.slice(0, 10) : '';
-  document.getElementById('c-notes').value = c.notes || '';
-  document.getElementById('modal-contract').style.display = 'flex';
-}
-
-document.getElementById('cancel-contract').addEventListener('click', () => {
-  document.getElementById('modal-contract').style.display = 'none';
-});
-
-document.getElementById('confirm-contract').addEventListener('click', async () => {
-  const id       = document.getElementById('c-id').value;
-  const name     = document.getElementById('c-name').value.trim();
-  const client   = document.getElementById('c-client').value.trim();
-  const deadline = document.getElementById('c-deadline').value;
-  const notes    = document.getElementById('c-notes').value.trim();
-  if (!name) return alert('Nom requis.');
-  const r = id
-    ? await api.put(`/api/contracts/${id}`, { name, client, deadline, notes })
-    : await api.post('/api/contracts', { name, client, deadline, notes });
-  if (r?.error) return alert(r.error);
-  document.getElementById('modal-contract').style.display = 'none';
-  await loadContracts();
-  renderContracts();
-});
-
-async function toggleContractStatus(id) {
-  const r = await api.post(`/api/contracts/${id}/toggle-status`, {});
-  if (r?.error) return alert(r.error);
-  await loadContracts();
-  renderContracts();
-}
-
-async function deleteContract(id) {
-  if (!confirm('Supprimer ce contrat et toutes ses lignes ?')) return;
-  const r = await api.delete(`/api/contracts/${id}`);
-  if (r?.error) return alert(r.error);
-  await loadContracts();
-  renderContracts();
-}
-
-// ── Détail contrat ────────────────────────────────────────────────────────────
-
-async function openContractDetail(id) {
-  currentContractDetailId = id;
-  const c = contracts.find(x => x.id === id);
-  if (!c) return;
-  document.getElementById('contract-detail-title').textContent = escapeHtml(c.name);
-  const statusLabel = c.status === 'closed' ? '🔒 Clôturé' : '🟢 En cours';
-  const deadline    = c.deadline ? new Date(c.deadline).toLocaleDateString('fr-FR') : '—';
-  document.getElementById('contract-detail-meta').innerHTML = `
-    <span>${statusLabel}</span>${c.client ? ` · <span>👤 ${escapeHtml(c.client)}</span>` : ''} · <span>📅 ${deadline}</span>
-  `;
-  document.getElementById('modal-contract-detail').style.display = 'flex';
-  await renderContractLines(id);
-}
-
-async function renderContractLines(contractId) {
-  const lines = await api.get(`/api/contracts/${contractId}/lines`) || [];
-  const el = document.getElementById('contract-lines-list');
-  if (lines.length === 0) {
-    el.innerHTML = '<p style="color:var(--text2);font-size:.85rem;padding:8px 0">Aucune ligne — ajoute-en une ci-dessous.</p>';
-    return;
-  }
-  el.innerHTML = `<div class="cl-header">
-    <span>Produit</span><span>Commandé</span><span>Livré</span><span>Prix/u</span><span>Total</span><span></span>
-  </div>` + lines.map(l => {
-    const total = l.qty_delivered * l.unit_price;
-    return `<div class="cl-row">
-      <span class="cl-product">${escapeHtml(l.product_name)}</span>
-      <span><input type="number" class="cl-input" value="${l.qty_ordered}" min="0" onchange="updateContractLine(${contractId}, ${l.id}, 'qty_ordered', this.value, this)" data-field="qty_ordered"/></span>
-      <span><input type="number" class="cl-input cl-delivered" value="${l.qty_delivered}" min="0" max="${l.qty_ordered}" onchange="updateContractLine(${contractId}, ${l.id}, 'qty_delivered', this.value, this)" data-field="qty_delivered"/></span>
-      <span><input type="number" class="cl-input" value="${l.unit_price}" min="0" onchange="updateContractLine(${contractId}, ${l.id}, 'unit_price', this.value, this)" data-field="unit_price"/></span>
-      <span class="cl-total" id="cl-total-${l.id}">$${total.toLocaleString('fr-FR')}</span>
-      <button class="btn-icon danger" onclick="deleteContractLine(${contractId}, ${l.id})" title="Supprimer">🗑️</button>
-    </div>`;
-  }).join('');
-}
-
-async function updateContractLine(contractId, lineId, field, value, inputEl) {
-  const row = inputEl.closest('.cl-row');
-  const inputs = row.querySelectorAll('.cl-input');
-  const data = {
-    product_name:  row.querySelector('.cl-product').textContent,
-    qty_ordered:   parseInt(inputs[0].value) || 0,
-    qty_delivered: parseInt(inputs[1].value) || 0,
-    unit_price:    parseInt(inputs[2].value) || 0,
-  };
-  await api.put(`/api/contracts/${contractId}/lines/${lineId}`, data);
-  const total = data.qty_delivered * data.unit_price;
-  const totalEl = document.getElementById(`cl-total-${lineId}`);
-  if (totalEl) totalEl.textContent = `$${total.toLocaleString('fr-FR')}`;
-  await loadContracts();
-  renderContracts();
-}
-
-async function deleteContractLine(contractId, lineId) {
-  if (!confirm('Supprimer cette ligne ?')) return;
-  await api.delete(`/api/contracts/${contractId}/lines/${lineId}`);
-  await renderContractLines(contractId);
-  await loadContracts();
-  renderContracts();
-}
-
-document.getElementById('btn-add-contract-line').addEventListener('click', async () => {
-  const product  = document.getElementById('cl-product').value.trim();
-  const qty      = parseInt(document.getElementById('cl-qty').value) || 0;
-  const price    = parseInt(document.getElementById('cl-price').value) || 0;
-  if (!product) return alert('Produit requis.');
-  const r = await api.post(`/api/contracts/${currentContractDetailId}/lines`, {
-    product_name: product, qty_ordered: qty, unit_price: price,
-  });
-  if (r?.error) return alert(r.error);
-  document.getElementById('cl-product').value = '';
-  document.getElementById('cl-qty').value = '';
-  document.getElementById('cl-price').value = '';
-  await renderContractLines(currentContractDetailId);
-  await loadContracts();
-  renderContracts();
-});
-
-document.getElementById('close-contract-detail').addEventListener('click', () => {
-  document.getElementById('modal-contract-detail').style.display = 'none';
-});
-
 // ── Boot ──────────────────────────────────────────────────────────────────────
 (async () => {
   const user = await checkAuth();
@@ -1787,7 +1622,6 @@ document.getElementById('close-contract-detail').addEventListener('click', () =>
   await loadInventory();
   await loadInvFavorites();
   await loadRecipes();
-  await loadContracts();
   if (user.is_admin) await loadSettings();
   initNotifyToggle(user);
   initSocket();

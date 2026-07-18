@@ -482,12 +482,17 @@ async function botPatch(path, body, token) {
 }
 
 // Édite le message Discord d'une commande si on a son ID
+function getOrderItemsStr(orderId) {
+  const lines = db.prepare(`
+    SELECT ol.quantity, oi.name FROM order_lines ol
+    JOIN order_items oi ON ol.item_id = oi.id
+    WHERE ol.order_id = ? ORDER BY ol.id
+  `).all(orderId);
+  return lines.map(l => `${l.name} ×${l.quantity}`).join('\n') || '—';
+}
+
 async function patchOrderMessage(orderId, token, channelId) {
-  const order = db.prepare(`
-    SELECT o.*, oi.name AS item_name
-    FROM orders o JOIN order_items oi ON o.item_id = oi.id
-    WHERE o.id = ?
-  `).get(orderId);
+  const order = db.prepare('SELECT * FROM orders WHERE id=?').get(orderId);
   if (!order?.discord_message_id || !channelId) return;
 
   const assignees = db.prepare(`
@@ -495,8 +500,9 @@ async function patchOrderMessage(orderId, token, channelId) {
   `).all(orderId);
   const deadlineStr   = order.deadline ? new Date(order.deadline).toLocaleDateString('fr-FR') : 'Non définie';
   const assigneeNames = assignees.map(u => u.username).join(', ') || '—';
+  const itemsStr      = getOrderItemsStr(orderId);
 
-  const embed = buildOrderEmbed(orderId, order.item_name, order.quantity, order.status, assigneeNames, deadlineStr, order.client);
+  const embed = buildOrderEmbed(orderId, itemsStr, order.status, assigneeNames, deadlineStr, order.client);
   try {
     await botPatch(`/channels/${channelId}/messages/${order.discord_message_id}`, embed, token);
   } catch (e) {
@@ -517,7 +523,7 @@ async function verifyDiscordSig(rawBody, signature, timestamp, publicKeyHex) {
   } catch { return false; }
 }
 
-function buildOrderEmbed(orderId, itemName, quantity, status, assigneeNames, deadlineStr, client) {
+function buildOrderEmbed(orderId, itemsStr, status, assigneeNames, deadlineStr, client) {
   const statusLabel = {
     pending:     '⏳ En attente',
     in_progress: '🔄 En cours',
@@ -533,20 +539,19 @@ function buildOrderEmbed(orderId, itemName, quantity, status, assigneeNames, dea
   }[status] || 0x8b949e;
 
   const title = {
-    pending:     '📦 Nouvelle commande',
-    in_progress: '🔄 Commande en cours',
-    to_deliver:  '📦 Commande à livrer',
-    done:        '✅ Commande terminée',
-  }[status] || '📦 Commande';
+    pending:     '📋 Nouveau contrat',
+    in_progress: '🔄 Contrat en cours',
+    to_deliver:  '📦 Contrat à livrer',
+    done:        '✅ Contrat terminé',
+  }[status] || '📋 Contrat';
 
   const fields = [
-    { name: 'Article',   value: itemName,         inline: true },
-    { name: 'Quantité',  value: String(quantity),  inline: true },
-    { name: 'Deadline',  value: deadlineStr,       inline: true },
-    { name: 'Assigné à', value: assigneeNames,     inline: false },
+    { name: 'Articles',  value: itemsStr,      inline: false },
+    { name: 'Deadline',  value: deadlineStr,   inline: true },
+    { name: 'Assigné à', value: assigneeNames, inline: true },
   ];
-  if (client) fields.push({ name: 'Contrat',  value: client,      inline: true });
-  fields.push(  { name: 'Statut',   value: statusLabel,  inline: true });
+  if (client) fields.push({ name: 'Note', value: client, inline: true });
+  fields.push({ name: 'Statut', value: statusLabel, inline: true });
 
   const embeds = [{ title, color, fields }];
 
@@ -608,17 +613,21 @@ app.post('/discord/interactions', async (req, res) => {
       return res.json({ type: 1 });
     }
 
-    const order     = db.prepare('SELECT o.*, oi.name AS item_name FROM orders o JOIN order_items oi ON o.item_id=oi.id WHERE o.id=?').get(orderId);
+    const order     = db.prepare('SELECT * FROM orders WHERE id=?').get(orderId);
     const assignees = db.prepare('SELECT u.username FROM order_assignments oa JOIN users u ON oa.user_id=u.id WHERE oa.order_id=?').all(orderId);
     const deadlineStr   = order?.deadline ? new Date(order.deadline).toLocaleDateString('fr-FR') : 'Non définie';
     const assigneeNames = assignees.map(u => u.username).join(', ') || '—';
+    const itemsStr      = getOrderItemsStr(orderId);
+
+    // Log event
+    db.prepare("INSERT INTO order_events (order_id, event_type, new_status) VALUES (?, 'status_changed', ?)").run(orderId, newStatus);
 
     // Broadcast temps-réel vers le dashboard
     broadcast('orders:changed', {});
 
     return res.json({
       type: 7, // UPDATE_MESSAGE
-      data: buildOrderEmbed(orderId, order?.item_name || '?', order?.quantity || 1, newStatus, assigneeNames, deadlineStr, order?.client),
+      data: buildOrderEmbed(orderId, itemsStr, newStatus, assigneeNames, deadlineStr, order?.client),
     });
   }
 
@@ -923,69 +932,82 @@ app.delete('/api/order-items/:id', requireAdmin, (req, res) => {
 // ── Orders ────────────────────────────────────────────────────────────────────
 app.get('/api/orders', (_, res) => {
   const orders = db.prepare(`
-    SELECT o.*, oi.name AS item_name,
+    SELECT o.*,
            u.username AS created_by_name,
            COALESCE(u.is_admin, 0) AS created_by_is_admin
     FROM orders o
-    JOIN order_items oi ON o.item_id = oi.id
     LEFT JOIN users u ON o.created_by = u.id
     ORDER BY o.created_at DESC
   `).all();
+  const linesStmt = db.prepare(`
+    SELECT ol.id, ol.item_id, ol.quantity, oi.name AS item_name
+    FROM order_lines ol JOIN order_items oi ON ol.item_id = oi.id
+    WHERE ol.order_id = ? ORDER BY ol.id
+  `);
+  const assignStmt = db.prepare(`
+    SELECT u.id, u.username, u.avatar, u.discord_id
+    FROM order_assignments oa JOIN users u ON oa.user_id = u.id
+    WHERE oa.order_id = ?
+  `);
   for (const o of orders) {
-    o.assignees = db.prepare(`
-      SELECT u.id, u.username, u.avatar, u.discord_id
-      FROM order_assignments oa JOIN users u ON oa.user_id = u.id
-      WHERE oa.order_id = ?
-    `).all(o.id);
+    o.lines     = linesStmt.all(o.id);
+    o.assignees = assignStmt.all(o.id);
   }
   res.json(orders);
 });
 
+app.get('/api/orders/:id/events', (req, res) => {
+  const events = db.prepare(`
+    SELECT oe.*, u.username AS user_name
+    FROM order_events oe
+    LEFT JOIN users u ON oe.user_id = u.id
+    WHERE oe.order_id = ?
+    ORDER BY oe.created_at ASC
+  `).all(req.params.id);
+  res.json(events);
+});
+
 app.post('/api/orders', async (req, res) => {
-  const { item_id, quantity = 1, deadline, user_ids = [], client } = req.body;
-  if (!item_id) return res.status(400).json({ error: 'Article requis' });
+  const { lines = [], deadline, user_ids = [], client } = req.body;
+  const validLines = (Array.isArray(lines) ? lines : []).filter(l => l.item_id && parseInt(l.item_id));
+  if (validLines.length === 0) return res.status(400).json({ error: 'Au moins 1 article requis' });
+  if (validLines.length > 5)   return res.status(400).json({ error: '5 articles maximum' });
   if (!Array.isArray(user_ids) || user_ids.length === 0)
-    return res.status(400).json({ error: 'Assigne la commande à au moins une personne' });
+    return res.status(400).json({ error: 'Assigne le contrat à au moins une personne' });
 
-  const item = db.prepare('SELECT * FROM order_items WHERE id=?').get(item_id);
-  if (!item) return res.status(400).json({ error: 'Article introuvable' });
-
-  const r = db.prepare('INSERT INTO orders (item_id, quantity, deadline, created_by, client) VALUES (?, ?, ?, ?, ?)')
-    .run(item_id, quantity, deadline || null, req.session.userId, client || null);
+  const r = db.prepare('INSERT INTO orders (deadline, created_by, client) VALUES (?, ?, ?)')
+    .run(deadline || null, req.session.userId, client || null);
   const orderId = r.lastInsertRowid;
 
+  const insLine   = db.prepare('INSERT INTO order_lines (order_id, item_id, quantity) VALUES (?, ?, ?)');
   const insAssign = db.prepare('INSERT OR IGNORE INTO order_assignments (order_id, user_id) VALUES (?, ?)');
+  for (const { item_id, quantity } of validLines) insLine.run(orderId, parseInt(item_id), Math.max(1, parseInt(quantity) || 1));
   for (const uid of user_ids) insAssign.run(orderId, uid);
 
-  // Notification Discord (salon commandes)
+  // Log création
+  db.prepare("INSERT INTO order_events (order_id, event_type, new_status, user_id) VALUES (?, 'created', 'pending', ?)")
+    .run(orderId, req.session.userId);
+
+  // Notification Discord
   const token     = getSetting('discord_bot_token');
   const channelId = getSetting('discord_orders_channel_id') || getSetting('discord_notify_channel_id');
   if (token && channelId) {
     try {
       const assignees = db.prepare(`
         SELECT u.username, u.discord_id, COALESCE(u.discord_notify, 1) AS discord_notify
-        FROM order_assignments oa JOIN users u ON oa.user_id = u.id
-        WHERE oa.order_id = ?
+        FROM order_assignments oa JOIN users u ON oa.user_id = u.id WHERE oa.order_id = ?
       `).all(orderId);
-
-      const mentions = assignees
-        .filter(u => u.discord_id && u.discord_id !== '__admin__' && u.discord_id !== 'local' && u.discord_notify)
-        .map(u => `<@${u.discord_id}>`).join(' ');
-
-      const deadlineStr = deadline
-        ? new Date(deadline).toLocaleDateString('fr-FR')
-        : 'Non définie';
-
+      const mentions      = assignees.filter(u => u.discord_id && u.discord_id !== '__admin__' && u.discord_id !== 'local' && u.discord_notify).map(u => `<@${u.discord_id}>`).join(' ');
+      const deadlineStr   = deadline ? new Date(deadline).toLocaleDateString('fr-FR') : 'Non définie';
       const assigneeNames = assignees.map(u => u.username).join(', ') || '—';
-      const embed = buildOrderEmbed(orderId, item.name, quantity, 'pending', assigneeNames, deadlineStr, client);
+      const itemsStr      = getOrderItemsStr(orderId);
+      const embed = buildOrderEmbed(orderId, itemsStr, 'pending', assigneeNames, deadlineStr, client);
       const msgRes = await botPost(`/channels/${channelId}/messages`, { content: mentions || null, ...embed }, token);
       if (msgRes.ok) {
         const msgData = await msgRes.json();
         if (msgData.id) db.prepare('UPDATE orders SET discord_message_id=? WHERE id=?').run(msgData.id, orderId);
       }
-    } catch (e) {
-      console.error('Order notification error:', e.message);
-    }
+    } catch (e) { console.error('Order notification error:', e.message); }
   }
 
   broadcast('orders:changed', {});
@@ -1001,17 +1023,28 @@ app.put('/api/orders/:id', (req, res) => {
   if (creator?.is_admin && !user?.is_admin)
     return res.status(403).json({ error: 'Seul un admin peut modifier cette commande' });
 
-  const { item_id, quantity, deadline, user_ids, status, client, sale_price } = req.body;
+  const { lines, deadline, user_ids, status, client, sale_price } = req.body;
   const validStatuses = ['pending', 'in_progress', 'to_deliver', 'done'];
   const newStatus = validStatuses.includes(status) ? status : order.status;
   const newSalePrice = newStatus === 'done' && sale_price != null ? (parseInt(sale_price) || null) : (newStatus !== 'done' ? null : order.sale_price);
-  db.prepare('UPDATE orders SET item_id=?, quantity=?, deadline=?, status=?, client=?, sale_price=? WHERE id=?')
-    .run(item_id, quantity, deadline || null, newStatus, client || null, newSalePrice, req.params.id);
+  db.prepare('UPDATE orders SET deadline=?, status=?, client=?, sale_price=? WHERE id=?')
+    .run(deadline || null, newStatus, client || null, newSalePrice, req.params.id);
 
+  if (Array.isArray(lines)) {
+    const validLines = lines.filter(l => l.item_id && parseInt(l.item_id)).slice(0, 5);
+    db.prepare('DELETE FROM order_lines WHERE order_id=?').run(req.params.id);
+    const insLine = db.prepare('INSERT INTO order_lines (order_id, item_id, quantity) VALUES (?, ?, ?)');
+    for (const { item_id, quantity } of validLines) insLine.run(req.params.id, parseInt(item_id), Math.max(1, parseInt(quantity) || 1));
+  }
   if (Array.isArray(user_ids)) {
     db.prepare('DELETE FROM order_assignments WHERE order_id=?').run(req.params.id);
     const ins = db.prepare('INSERT OR IGNORE INTO order_assignments (order_id, user_id) VALUES (?, ?)');
     for (const uid of user_ids) ins.run(req.params.id, uid);
+  }
+  // Log changement de statut si nécessaire
+  if (newStatus !== order.status) {
+    db.prepare("INSERT INTO order_events (order_id, event_type, new_status, user_id) VALUES (?, 'status_changed', ?, ?)")
+      .run(req.params.id, newStatus, req.session.userId);
   }
   broadcast('orders:changed', {});
 
@@ -1039,6 +1072,8 @@ app.patch('/api/orders/:id/status', async (req, res) => {
   } else {
     db.prepare('UPDATE orders SET status=? WHERE id=?').run(status, req.params.id);
   }
+  db.prepare("INSERT INTO order_events (order_id, event_type, new_status, user_id) VALUES (?, 'status_changed', ?, ?)")
+    .run(req.params.id, status, req.session.userId);
   broadcast('orders:changed', {});
 
   // Patch message Discord
@@ -1078,9 +1113,10 @@ app.delete('/api/orders/:id', (req, res) => {
   res.json({ success: true });
 });
 
-// ── Contrats ──────────────────────────────────────────────────────────────────
+// ── Fin des routes ────────────────────────────────────────────────────────────
 
-app.get('/api/contracts', (_, res) => {
+// (ancien onglet Contrats supprimé — remplacé par multi-lignes sur les ordres)
+if (false) app.get('/api/contracts', (_, res) => {
   const contracts = db.prepare(`
     SELECT c.*, u.username AS created_by_name,
            (SELECT COUNT(*) FROM contract_lines WHERE contract_id = c.id) AS line_count,
@@ -1176,5 +1212,7 @@ app.get('/api/contracts/stats', (_, res) => {
   `).all();
   res.json(rows);
 });
+
+} // fin if(false) bloc contrats supprimés
 
 server.listen(3000, () => console.log('GTA Dashboard → http://localhost:3000'));

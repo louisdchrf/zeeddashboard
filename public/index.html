@@ -59,13 +59,12 @@
 <div id="header">
   <h1>GTA V — Drug Map</h1>
   <nav>
-    <button class="tab-btn active" data-tab="orders">Commandes</button>
+    <button class="tab-btn active" data-tab="orders">Contrats</button>
     <button class="tab-btn" data-tab="inventory">Inventaire</button>
     <button class="tab-btn" data-tab="map">Carte</button>
     <button class="tab-btn" data-tab="list">Plants actifs</button>
     <button class="tab-btn" data-tab="merchandise">Marchandises</button>
     <button class="tab-btn" data-tab="recipes">Recettes</button>
-    <button class="tab-btn" data-tab="contracts">Contrats</button>
     <button class="tab-btn" data-tab="stats">Stats</button>
     <button class="tab-btn tab-admin" data-tab="settings" style="display:none">Paramètres</button>
   </nav>
@@ -144,15 +143,6 @@
   <div id="recipes-grid" class="recipes-grid"></div>
 </div>
 
-<!-- ── TAB: Contrats ── -->
-<div id="tab-contracts" class="tab-content">
-  <div class="section-header">
-    <h2>Contrats</h2>
-    <button class="btn-primary" id="btn-add-contract">+ Nouveau contrat</button>
-  </div>
-  <div id="contracts-list"></div>
-</div>
-
 <!-- ── TAB: Stats ── -->
 <div id="tab-stats" class="tab-content">
   <div class="section-header"><h2>Stats de production</h2></div>
@@ -166,10 +156,6 @@
       <div class="stats-card">
         <h3>Leaderboard</h3>
         <div id="stats-by-player"></div>
-      </div>
-      <div class="stats-card stats-card-wide">
-        <h3>Ventes par produit (contrats)</h3>
-        <div id="stats-by-product"></div>
       </div>
       <div class="stats-card stats-card-wide">
         <h3>Activité — 7 derniers jours</h3>
@@ -435,13 +421,13 @@
   </div>
 </div>
 
-<!-- ── TAB: Commandes ── -->
+<!-- ── TAB: Contrats ── -->
 <div id="tab-orders" class="tab-content active">
   <div class="section-header">
-    <h2>Commandes</h2>
+    <h2>Contrats</h2>
     <div style="display:flex;gap:8px">
       <button class="btn-secondary tab-admin" id="btn-manage-order-items" style="display:none">⚙️ Articles</button>
-      <button class="btn-primary" id="btn-add-order">+ Nouvelle commande</button>
+      <button class="btn-primary" id="btn-add-order">+ Nouveau contrat</button>
     </div>
   </div>
 
@@ -451,7 +437,7 @@
       <option value="pending">⏳ En attente</option>
       <option value="in_progress">🔄 En cours</option>
       <option value="to_deliver">📦 À livrer</option>
-      <option value="done">✅ Terminée</option>
+      <option value="done">✅ Terminé</option>
     </select>
     <select id="filter-order-assignee" class="filter-select">
       <option value="">Tous les membres</option>
@@ -463,9 +449,8 @@
   <table class="plant-table" id="orders-table">
     <thead>
       <tr>
-        <th>Article</th>
-        <th>Qté</th>
-        <th>Contrat</th>
+        <th>Articles</th>
+        <th>Note</th>
         <th>Deadline</th>
         <th>Assigné à</th>
         <th>Statut</th>
@@ -485,48 +470,61 @@
   <div id="inventory-grid" class="inventory-grid"></div>
 </div>
 
-<!-- ── Modal: Nouvelle / éditer commande ── -->
+<!-- ── Modal: Nouveau / éditer contrat ── -->
 <div class="modal-overlay" id="modal-order">
   <div class="modal-box">
-    <h2 id="order-modal-title">Nouvelle commande</h2>
+    <h2 id="order-modal-title">Nouveau contrat</h2>
     <input type="hidden" id="o-id"/>
-    <div class="form-group">
-      <label>Article</label>
-      <select id="o-item"></select>
+
+    <div class="modal-subtabs">
+      <button class="modal-subtab active" onclick="switchOrderModalTab('details')">Détails</button>
+      <button class="modal-subtab" id="o-tab-history-btn" onclick="switchOrderModalTab('history')" style="display:none">Historique</button>
     </div>
-    <div class="form-group">
-      <label>Quantité</label>
-      <input type="number" id="o-quantity" min="1" value="1"/>
+
+    <!-- Onglet Détails -->
+    <div id="o-tab-details">
+      <div class="form-group">
+        <label>Articles (1 à 5)</label>
+        <div id="o-lines-container">
+          <div class="o-line-row" data-idx="0"><select class="o-line-item" data-idx="0"><option value="">— Choisir —</option></select><input type="number" class="o-line-qty" data-idx="0" value="1" min="1"/></div>
+          <div class="o-line-row" data-idx="1"><select class="o-line-item" data-idx="1"><option value="">— Choisir —</option></select><input type="number" class="o-line-qty" data-idx="1" value="1" min="1"/></div>
+          <div class="o-line-row" data-idx="2"><select class="o-line-item" data-idx="2"><option value="">— Choisir —</option></select><input type="number" class="o-line-qty" data-idx="2" value="1" min="1"/></div>
+          <div class="o-line-row" data-idx="3"><select class="o-line-item" data-idx="3"><option value="">— Choisir —</option></select><input type="number" class="o-line-qty" data-idx="3" value="1" min="1"/></div>
+          <div class="o-line-row" data-idx="4"><select class="o-line-item" data-idx="4"><option value="">— Choisir —</option></select><input type="number" class="o-line-qty" data-idx="4" value="1" min="1"/></div>
+        </div>
+      </div>
+      <div class="form-group">
+        <label>Deadline (optionnel)</label>
+        <input type="date" id="o-deadline"/>
+      </div>
+      <div class="form-group">
+        <label>Note (optionnel)</label>
+        <input type="text" id="o-client" placeholder="Référence, note…"/>
+      </div>
+      <div class="form-group" id="o-status-group" style="display:none">
+        <label>Statut</label>
+        <select id="o-status" onchange="onOrderStatusChange(this.value)">
+          <option value="pending">⏳ En attente</option>
+          <option value="in_progress">🔄 En cours</option>
+          <option value="to_deliver">📦 À livrer</option>
+          <option value="done">✅ Terminé</option>
+        </select>
+      </div>
+      <div class="form-group" id="o-sale-price-group" style="display:none">
+        <label>Prix de vente ($)</label>
+        <input type="number" id="o-sale-price" min="0" placeholder="Montant en dollars"/>
+      </div>
+      <div class="form-group">
+        <label>Assigner à</label>
+        <div id="o-assignees" class="assignee-list"></div>
+      </div>
     </div>
-    <div class="form-group">
-      <label>Deadline (optionnel)</label>
-      <input type="date" id="o-deadline"/>
+
+    <!-- Onglet Historique -->
+    <div id="o-tab-history" style="display:none">
+      <div id="o-events-list" class="order-events-list"></div>
     </div>
-    <div class="form-group">
-      <label>Contrat</label>
-      <input type="text" id="o-client" placeholder="Référence du contrat"/>
-    </div>
-    <div class="form-group" id="o-status-group" style="display:none">
-      <label>Statut</label>
-      <select id="o-status" onchange="onOrderStatusChange(this.value)">
-        <option value="pending">⏳ En attente</option>
-        <option value="in_progress">🔄 En cours</option>
-        <option value="to_deliver">📦 À livrer</option>
-        <option value="done">✅ Terminée</option>
-      </select>
-    </div>
-    <div class="form-group" id="o-sale-price-group" style="display:none">
-      <label>Prix de vente ($)</label>
-      <input type="number" id="o-sale-price" min="0" placeholder="Montant en dollars"/>
-    </div>
-    <div id="order-ingredients-preview" class="order-ingredients-preview" style="display:none">
-      <div class="oip-title">🧪 Matières premières nécessaires</div>
-      <div id="oip-rows"></div>
-    </div>
-    <div class="form-group">
-      <label>Assigner à</label>
-      <div id="o-assignees" class="assignee-list"></div>
-    </div>
+
     <div class="modal-footer">
       <button class="btn-cancel" id="cancel-order">Annuler</button>
       <button class="btn-confirm" id="confirm-order">Enregistrer</button>
@@ -595,57 +593,11 @@
   </div>
 </div>
 
-<!-- ── Modal: Contrat ── -->
-<div class="modal-overlay" id="modal-contract">
-  <div class="modal-box" style="max-width:480px">
-    <h2 id="contract-modal-title">Nouveau contrat</h2>
-    <input type="hidden" id="c-id"/>
-    <div class="form-group">
-      <label>Nom du contrat</label>
-      <input type="text" id="c-name" placeholder="ex: Contrat Ballas #12"/>
-    </div>
-    <div class="form-group">
-      <label>Client</label>
-      <input type="text" id="c-client" placeholder="ex: Ballas, Vagos…"/>
-    </div>
-    <div class="form-group">
-      <label>Deadline</label>
-      <input type="date" id="c-deadline"/>
-    </div>
-    <div class="form-group">
-      <label>Notes</label>
-      <textarea id="c-notes" rows="2" style="resize:vertical" placeholder="Informations supplémentaires…"></textarea>
-    </div>
-    <div class="modal-footer">
-      <button class="btn-cancel" id="cancel-contract">Annuler</button>
-      <button class="btn-confirm" id="confirm-contract">Enregistrer</button>
-    </div>
-  </div>
-</div>
-
-<!-- ── Modal: Détail contrat (lignes) ── -->
-<div class="modal-overlay" id="modal-contract-detail">
-  <div class="modal-box" style="max-width:620px">
-    <h2 id="contract-detail-title">Détail du contrat</h2>
-    <div id="contract-detail-meta" class="contract-detail-meta"></div>
-    <div id="contract-lines-list" class="contract-lines-list"></div>
-    <div class="contract-line-add">
-      <input type="text" id="cl-product" placeholder="Produit…" style="flex:2"/>
-      <input type="number" id="cl-qty" placeholder="Qté" min="0" style="width:70px"/>
-      <input type="number" id="cl-price" placeholder="Prix/u" min="0" style="width:80px"/>
-      <button class="btn-primary" id="btn-add-contract-line">+</button>
-    </div>
-    <div class="modal-footer" style="margin-top:16px">
-      <button class="btn-cancel" id="close-contract-detail">Fermer</button>
-    </div>
-  </div>
-</div>
-
 <!-- ── Bottom nav (mobile/tablette) ── -->
 <div id="bottom-nav">
   <button class="bnav-btn active" data-tab="orders">
-    <span class="bnav-icon">🛒</span>
-    <span class="bnav-label">Commandes</span>
+    <span class="bnav-icon">📋</span>
+    <span class="bnav-label">Contrats</span>
   </button>
   <button class="bnav-btn" data-tab="inventory">
     <span class="bnav-icon">📋</span>
@@ -666,10 +618,6 @@
   <button class="bnav-btn" data-tab="recipes">
     <span class="bnav-icon">⚗️</span>
     <span class="bnav-label">Recettes</span>
-  </button>
-  <button class="bnav-btn" data-tab="contracts">
-    <span class="bnav-icon">📋</span>
-    <span class="bnav-label">Contrats</span>
   </button>
   <button class="bnav-btn" data-tab="stats">
     <span class="bnav-icon">📊</span>

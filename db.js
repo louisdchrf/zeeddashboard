@@ -112,6 +112,41 @@ try { db.exec(`ALTER TABLE users ADD COLUMN discord_notify INTEGER DEFAULT 1`); 
 try { db.exec(`ALTER TABLE orders ADD COLUMN sale_price INTEGER DEFAULT NULL`); } catch (_) {}
 try { db.exec(`ALTER TABLE inventory_stock ADD COLUMN updated_by INTEGER REFERENCES users(id)`); } catch (_) {}
 
+// Tables multi-lignes contrats + historique
+db.exec(`
+  CREATE TABLE IF NOT EXISTS order_lines (
+    id       INTEGER PRIMARY KEY AUTOINCREMENT,
+    order_id INTEGER NOT NULL REFERENCES orders(id) ON DELETE CASCADE,
+    item_id  INTEGER NOT NULL REFERENCES order_items(id),
+    quantity INTEGER NOT NULL DEFAULT 1
+  );
+
+  CREATE TABLE IF NOT EXISTS order_events (
+    id         INTEGER PRIMARY KEY AUTOINCREMENT,
+    order_id   INTEGER NOT NULL REFERENCES orders(id) ON DELETE CASCADE,
+    event_type TEXT NOT NULL,
+    new_status TEXT,
+    user_id    INTEGER REFERENCES users(id),
+    created_at TEXT NOT NULL DEFAULT (datetime('now'))
+  );
+`);
+
+// Migration : peupler order_lines depuis les commandes existantes à item_id unique
+{
+  const hasLines = db.prepare('SELECT COUNT(*) AS c FROM order_lines').get();
+  if (hasLines.c === 0) {
+    db.exec(`
+      INSERT INTO order_lines (order_id, item_id, quantity)
+      SELECT id, item_id, COALESCE(quantity, 1)
+      FROM orders WHERE item_id IS NOT NULL
+    `);
+    db.exec(`
+      INSERT INTO order_events (order_id, event_type, new_status, created_at)
+      SELECT id, 'created', status, created_at FROM orders
+    `);
+  }
+}
+
 // Nouvelles tables
 db.exec(`
   CREATE TABLE IF NOT EXISTS stock_movements (
