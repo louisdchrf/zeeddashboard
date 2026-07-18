@@ -614,7 +614,7 @@ app.post('/discord/interactions', async (req, res) => {
     const assigneeNames = assignees.map(u => u.username).join(', ') || '—';
 
     // Broadcast temps-réel vers le dashboard
-    io.emit('order_updated', { id: orderId, status: newStatus });
+    broadcast('orders:changed', {});
 
     return res.json({
       type: 7, // UPDATE_MESSAGE
