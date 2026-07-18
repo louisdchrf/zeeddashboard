@@ -430,6 +430,21 @@
     </div>
   </div>
 
+  <div class="orders-filters">
+    <select id="filter-order-status" class="filter-select">
+      <option value="">Tous les statuts</option>
+      <option value="pending">⏳ En attente</option>
+      <option value="in_progress">🔄 En cours</option>
+      <option value="to_deliver">📦 À livrer</option>
+      <option value="done">✅ Terminée</option>
+    </select>
+    <select id="filter-order-assignee" class="filter-select">
+      <option value="">Tous les membres</option>
+    </select>
+    <button class="btn-secondary" id="btn-reset-order-filters" style="padding:5px 12px;font-size:.8rem">Réinitialiser</button>
+    <span id="orders-count" style="margin-left:auto;font-size:.8rem;color:var(--text2)"></span>
+  </div>
+
   <table class="plant-table" id="orders-table">
     <thead>
       <tr>

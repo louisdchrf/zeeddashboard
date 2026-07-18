@@ -64,6 +64,7 @@ let modalSource   = 'map';   // 'map' | 'list'
 let markers       = {};
 let mapFilter     = 'all';  // 'all' | 'shared' | 'personal'
 let listFilter    = 'all';  // 'all' | 'shared' | 'personal'
+let orderFilters  = { status: '', assignee: '' };
 
 // ── Map setup (initialisé en lazy car l'onglet carte n'est plus le défaut) ─────
 
@@ -1007,16 +1008,38 @@ async function loadUsers() {
   allUsers = await api.get('/api/users') || [];
 }
 
+function populateOrderAssigneeFilter() {
+  const sel = document.getElementById('filter-order-assignee');
+  if (!sel) return;
+  const current = sel.value;
+  sel.innerHTML = '<option value="">Tous les membres</option>' +
+    allUsers.map(u => `<option value="${u.id}" ${String(u.id) === current ? 'selected' : ''}>${escapeHtml(u.username)}</option>`).join('');
+}
+
 function renderOrders() {
   const tbody = document.getElementById('orders-body');
   if (!tbody) return;
 
+  // Appliquer les filtres
   const statusOrder = { pending: 0, in_progress: 1, to_deliver: 2, done: 3 };
-  const sorted = [...orders].sort((a, b) => (statusOrder[a.status] ?? 9) - (statusOrder[b.status] ?? 9));
+  let filtered = [...orders];
+  if (orderFilters.status)   filtered = filtered.filter(o => o.status === orderFilters.status);
+  if (orderFilters.assignee) filtered = filtered.filter(o => o.assignees.some(u => String(u.id) === orderFilters.assignee));
+  filtered.sort((a, b) => (statusOrder[a.status] ?? 9) - (statusOrder[b.status] ?? 9));
 
-  tbody.innerHTML = sorted.length === 0
-    ? '<tr><td colspan="8" style="text-align:center;color:var(--text2);padding:24px">Aucune commande</td></tr>'
-    : sorted.map(o => {
+  // Compteur
+  const countEl = document.getElementById('orders-count');
+  if (countEl) {
+    const total = orders.length;
+    const shown = filtered.length;
+    countEl.textContent = (orderFilters.status || orderFilters.assignee)
+      ? `${shown} / ${total} commande${total > 1 ? 's' : ''}`
+      : `${total} commande${total > 1 ? 's' : ''}`;
+  }
+
+  tbody.innerHTML = filtered.length === 0
+    ? '<tr><td colspan="7" style="text-align:center;color:var(--text2);padding:24px">Aucune commande</td></tr>'
+    : filtered.map(o => {
         const deadline = o.deadline
           ? new Date(o.deadline).toLocaleDateString('fr-FR')
           : '<span style="color:var(--text2)">—</span>';
@@ -1052,6 +1075,8 @@ function renderOrders() {
           <td class="actions-cell">${actions}</td>
         </tr>`;
       }).join('');
+
+  populateOrderAssigneeFilter();
 }
 
 async function quickChangeStatus(orderId, newStatus, selectEl) {
@@ -1201,6 +1226,24 @@ function closeOrderModal() {
 
 document.getElementById('btn-add-order').addEventListener('click', openNewOrderModal);
 document.getElementById('cancel-order').addEventListener('click', closeOrderModal);
+
+// ── Filtres commandes ─────────────────────────────────────────────────────────
+document.getElementById('filter-order-status').addEventListener('change', e => {
+  orderFilters.status = e.target.value;
+  renderOrders();
+});
+
+document.getElementById('filter-order-assignee').addEventListener('change', e => {
+  orderFilters.assignee = e.target.value;
+  renderOrders();
+});
+
+document.getElementById('btn-reset-order-filters').addEventListener('click', () => {
+  orderFilters = { status: '', assignee: '' };
+  document.getElementById('filter-order-status').value = '';
+  document.getElementById('filter-order-assignee').value = '';
+  renderOrders();
+});
 
 // Preview ingrédients live à la création
 document.getElementById('o-item')?.addEventListener('change', updateOrderIngredientsPreview);
