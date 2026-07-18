@@ -1020,18 +1020,17 @@ function renderOrders() {
         ).join('');
 
         const statusBadge = {
-          done:        '<span class="vis-badge shared">✅ Terminée</span>',
-          in_progress: '<span class="vis-badge" style="background:rgba(52,152,219,.15);color:#3498db;border-color:#3498db">🔄 En cours</span>',
-          pending:     '<span class="vis-badge" style="background:rgba(230,126,34,.15);color:#e67e22;border-color:#e67e22">⏳ En attente</span>',
+          done:        '<span class="order-badge badge-done">✅ Terminée</span>',
+          in_progress: '<span class="order-badge badge-progress">🔄 En cours</span>',
+          to_deliver:  '<span class="order-badge badge-deliver">📦 À livrer</span>',
+          pending:     '<span class="order-badge badge-pending">⏳ En attente</span>',
         }[o.status] || '';
 
         const canAct = currentUser?.is_admin || o.created_by === currentUser?.id;
         const stopProp = `event.stopPropagation();`;
-        const actions = o.status === 'done'
-          ? (canAct ? `<button class="btn-delete" onclick="${stopProp}deleteOrder(${o.id})">🗑️</button>` : '')
-          : `${o.status === 'pending' ? `<button class="btn-secondary" style="padding:3px 8px;font-size:.78rem" onclick="${stopProp}progressOrder(${o.id})">🔄</button>` : ''}
-             <button class="btn-harvest" onclick="${stopProp}completeOrder(${o.id})">✅</button>
-             ${canAct ? `<button class="btn-delete" onclick="${stopProp}deleteOrder(${o.id})">🗑️</button>` : ''}`;
+        const actions = canAct
+          ? `<button class="btn-icon danger" onclick="${stopProp}deleteOrder(${o.id})">🗑️</button>`
+          : '';
 
         return `<tr class="${o.status === 'done' ? 'order-done' : ''} order-row" onclick="openEditOrderModal(${o.id})">
           <td>${escapeHtml(o.item_name)}</td>
@@ -1127,6 +1126,7 @@ function openNewOrderModal() {
     if (el) el.disabled = false;
   });
   document.getElementById('confirm-order').style.display = '';
+  document.getElementById('o-status-group').style.display = 'none';
   populateOrderItemSelect();
   populateAssigneeCheckboxes();
   document.getElementById('modal-order').style.display = 'flex';
@@ -1144,22 +1144,25 @@ function openEditOrderModal(id) {
   document.getElementById('o-deadline').value = o.deadline ? o.deadline.slice(0, 10) : '';
 
   // Champs en lecture seule si pas de droits
-  ['o-item', 'o-quantity', 'o-deadline'].forEach(id => {
-    const el = document.getElementById(id);
+  ['o-item', 'o-quantity', 'o-deadline', 'o-status'].forEach(fieldId => {
+    const el = document.getElementById(fieldId);
     if (el) el.disabled = !canAct;
   });
   document.getElementById('confirm-order').style.display = canAct ? '' : 'none';
 
+  // Statut — visible uniquement en mode édition
+  const statusGroup = document.getElementById('o-status-group');
+  statusGroup.style.display = '';
+  document.getElementById('o-status').value = o.status || 'pending';
+
   populateOrderItemSelect(o.item_id);
   populateAssigneeCheckboxes(o.assignees.map(u => u.id));
-  // Désactiver les checkboxes assignés si pas de droits
   if (!canAct) {
     document.querySelectorAll('#o-assignees input').forEach(cb => cb.disabled = true);
   }
 
   document.getElementById('modal-order').style.display = 'flex';
 
-  // Forcer la valeur du select APRÈS le peuplement, puis afficher les ingrédients
   const sel = document.getElementById('o-item');
   if (sel) sel.value = o.item_id;
   updateOrderIngredientsPreview();
@@ -1188,7 +1191,8 @@ document.getElementById('confirm-order').addEventListener('click', async () => {
   if (!item_id) return alert('Sélectionne un article.');
   if (user_ids.length === 0) return alert('Assigne la commande à au moins une personne.');
 
-  const body = { item_id: parseInt(item_id), quantity, deadline, user_ids };
+  const status = document.getElementById('o-status')?.value || 'pending';
+  const body = { item_id: parseInt(item_id), quantity, deadline, user_ids, status };
   const r = id
     ? await api.put(`/api/orders/${id}`, body)
     : await api.post('/api/orders', body);

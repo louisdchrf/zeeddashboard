@@ -467,6 +467,15 @@
       <label>Deadline (optionnel)</label>
       <input type="date" id="o-deadline"/>
     </div>
+    <div class="form-group" id="o-status-group" style="display:none">
+      <label>Statut</label>
+      <select id="o-status">
+        <option value="pending">⏳ En attente</option>
+        <option value="in_progress">🔄 En cours</option>
+        <option value="to_deliver">📦 À livrer</option>
+        <option value="done">✅ Terminée</option>
+      </select>
+    </div>
     <div id="order-ingredients-preview" class="order-ingredients-preview" style="display:none">
       <div class="oip-title">🧪 Matières premières nécessaires</div>
       <div id="oip-rows"></div>

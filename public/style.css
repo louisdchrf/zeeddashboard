@@ -820,6 +820,22 @@ nav { display: flex; gap: 4px; }
   font-size: 0.78rem;
 }
 
+/* ── Statuts commandes ── */
+.order-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 10px;
+  border-radius: 12px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  white-space: nowrap;
+}
+.badge-pending  { background: rgba(116,128,160,.15); color: var(--text2); }
+.badge-progress { background: rgba(88,166,255,.15);  color: var(--blue); }
+.badge-deliver  { background: rgba(188,140,255,.15); color: var(--purple); }
+.badge-done     { background: rgba(58,185,107,.15);  color: var(--green); }
+
 /* ── Commandes ── */
 .order-done td { opacity: 0.5; }
 

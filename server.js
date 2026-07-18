@@ -487,7 +487,7 @@ async function verifyDiscordSig(rawBody, signature, timestamp, publicKeyHex) {
 }
 
 function buildOrderEmbed(orderId, itemName, quantity, status, assigneeNames, deadlineStr) {
-  const statusLabel = { pending: '⏳ En attente', in_progress: '🔄 En cours', done: '✅ Terminée' }[status] || '⏳ En attente';
+  const statusLabel = { pending: '⏳ En attente', in_progress: '🔄 En cours', to_deliver: '📦 À livrer', done: '✅ Terminée' }[status] || '⏳ En attente';
   const color       = { pending: 0xe67e22, in_progress: 0x3498db, done: 0x3fb950 }[status] || 0xe67e22;
 
   const embeds = [{
@@ -846,9 +846,11 @@ app.put('/api/orders/:id', (req, res) => {
   if (!user?.is_admin && order.created_by !== req.session.userId)
     return res.status(403).json({ error: 'Non autorisé' });
 
-  const { item_id, quantity, deadline, user_ids } = req.body;
-  db.prepare('UPDATE orders SET item_id=?, quantity=?, deadline=? WHERE id=?')
-    .run(item_id, quantity, deadline || null, req.params.id);
+  const { item_id, quantity, deadline, user_ids, status } = req.body;
+  const validStatuses = ['pending', 'in_progress', 'to_deliver', 'done'];
+  const newStatus = validStatuses.includes(status) ? status : order.status;
+  db.prepare('UPDATE orders SET item_id=?, quantity=?, deadline=?, status=? WHERE id=?')
+    .run(item_id, quantity, deadline || null, newStatus, req.params.id);
 
   if (Array.isArray(user_ids)) {
     db.prepare('DELETE FROM order_assignments WHERE order_id=?').run(req.params.id);
