@@ -998,11 +998,12 @@ app.put('/api/orders/:id', (req, res) => {
   if (creator?.is_admin && !user?.is_admin)
     return res.status(403).json({ error: 'Seul un admin peut modifier cette commande' });
 
-  const { item_id, quantity, deadline, user_ids, status, client } = req.body;
+  const { item_id, quantity, deadline, user_ids, status, client, sale_price } = req.body;
   const validStatuses = ['pending', 'in_progress', 'to_deliver', 'done'];
   const newStatus = validStatuses.includes(status) ? status : order.status;
-  db.prepare('UPDATE orders SET item_id=?, quantity=?, deadline=?, status=?, client=? WHERE id=?')
-    .run(item_id, quantity, deadline || null, newStatus, client || null, req.params.id);
+  const newSalePrice = newStatus === 'done' && sale_price != null ? (parseInt(sale_price) || null) : (newStatus !== 'done' ? null : order.sale_price);
+  db.prepare('UPDATE orders SET item_id=?, quantity=?, deadline=?, status=?, client=?, sale_price=? WHERE id=?')
+    .run(item_id, quantity, deadline || null, newStatus, client || null, newSalePrice, req.params.id);
 
   if (Array.isArray(user_ids)) {
     db.prepare('DELETE FROM order_assignments WHERE order_id=?').run(req.params.id);
@@ -1023,14 +1024,18 @@ app.put('/api/orders/:id', (req, res) => {
 
 // Changement de statut — accessible à tous les membres authentifiés
 app.patch('/api/orders/:id/status', async (req, res) => {
-  const { status } = req.body;
+  const { status, sale_price } = req.body;
   const validStatuses = ['pending', 'in_progress', 'to_deliver', 'done'];
   if (!validStatuses.includes(status)) return res.status(400).json({ error: 'Statut invalide' });
 
   const order = db.prepare('SELECT * FROM orders WHERE id=?').get(req.params.id);
   if (!order) return res.status(404).json({ error: 'Introuvable' });
 
-  db.prepare('UPDATE orders SET status=? WHERE id=?').run(status, req.params.id);
+  if (status === 'done' && sale_price != null) {
+    db.prepare('UPDATE orders SET status=?, sale_price=? WHERE id=?').run(status, parseInt(sale_price) || null, req.params.id);
+  } else {
+    db.prepare('UPDATE orders SET status=? WHERE id=?').run(status, req.params.id);
+  }
   broadcast('orders:changed', {});
 
   // Patch message Discord

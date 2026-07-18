@@ -1058,6 +1058,18 @@ nav { display: flex; gap: 2px; }
   white-space: nowrap;
 }
 
+.sale-price-tag {
+  display: inline-block;
+  background: rgba(76, 175, 80, .12);
+  color: #4CAF50;
+  border: 1px solid rgba(76, 175, 80, .25);
+  border-radius: 4px;
+  padding: 1px 7px;
+  font-size: 0.78rem;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
 .assignee-list {
   display: flex;
   flex-direction: column;

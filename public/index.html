@@ -469,6 +469,7 @@
         <th>Deadline</th>
         <th>Assigné à</th>
         <th>Statut</th>
+        <th>Prix</th>
         <th>Actions</th>
       </tr>
     </thead>
@@ -507,12 +508,16 @@
     </div>
     <div class="form-group" id="o-status-group" style="display:none">
       <label>Statut</label>
-      <select id="o-status">
+      <select id="o-status" onchange="onOrderStatusChange(this.value)">
         <option value="pending">⏳ En attente</option>
         <option value="in_progress">🔄 En cours</option>
         <option value="to_deliver">📦 À livrer</option>
         <option value="done">✅ Terminée</option>
       </select>
+    </div>
+    <div class="form-group" id="o-sale-price-group" style="display:none">
+      <label>Prix de vente ($)</label>
+      <input type="number" id="o-sale-price" min="0" placeholder="Montant en dollars"/>
     </div>
     <div id="order-ingredients-preview" class="order-ingredients-preview" style="display:none">
       <div class="oip-title">🧪 Matières premières nécessaires</div>

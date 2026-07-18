@@ -1092,7 +1092,7 @@ function renderOrders() {
   }
 
   tbody.innerHTML = filtered.length === 0
-    ? '<tr><td colspan="7" style="text-align:center;color:var(--text2);padding:24px">Aucune commande</td></tr>'
+    ? '<tr><td colspan="8" style="text-align:center;color:var(--text2);padding:24px">Aucune commande</td></tr>'
     : filtered.map(o => {
         const deadline = o.deadline
           ? new Date(o.deadline).toLocaleDateString('fr-FR')
@@ -1114,6 +1114,9 @@ function renderOrders() {
 
         const stopProp = `event.stopPropagation();`;
         const actions = `<button class="btn-icon danger" onclick="${stopProp}deleteOrder(${o.id})">🗑️</button>`;
+        const priceCell = o.status === 'done'
+          ? (o.sale_price != null ? `<span class="sale-price-tag">$${o.sale_price.toLocaleString('fr-FR')}</span>` : '<span style="color:var(--text2)">—</span>')
+          : '';
 
         return `<tr class="${o.status === 'done' ? 'order-done' : ''} order-row" onclick="openEditOrderModal(${o.id})">
           <td>${escapeHtml(o.item_name)}</td>
@@ -1122,6 +1125,7 @@ function renderOrders() {
           <td>${deadline}</td>
           <td>${assignees || '—'}</td>
           <td>${statusSelect}</td>
+          <td>${priceCell}</td>
           <td class="actions-cell">${actions}</td>
         </tr>`;
       }).join('');
@@ -1130,8 +1134,19 @@ function renderOrders() {
 }
 
 async function quickChangeStatus(orderId, newStatus, selectEl) {
+  let sale_price = null;
+  if (newStatus === 'done') {
+    const input = prompt('Prix de vente de la commande ($) :');
+    if (input === null) {
+      // Annulé — remettre l'ancienne valeur
+      const o = orders.find(x => x.id === orderId);
+      if (o) selectEl.value = o.status;
+      return;
+    }
+    sale_price = input.trim() !== '' ? parseInt(input) || null : null;
+  }
   selectEl.disabled = true;
-  const r = await api.patch(`/api/orders/${orderId}/status`, { status: newStatus });
+  const r = await api.patch(`/api/orders/${orderId}/status`, { status: newStatus, sale_price });
   selectEl.disabled = false;
   if (r?.error) {
     alert(r.error);
@@ -1173,9 +1188,10 @@ function populateOrderItemSelect(selectedId = null) {
 
 function populateAssigneeCheckboxes(selectedIds = []) {
   const container = document.getElementById('o-assignees');
-  container.innerHTML = allUsers.length === 0
-    ? '<p style="color:var(--text2);font-size:.85rem">Aucun utilisateur.</p>'
-    : allUsers.map(u => `
+  const eligible = allUsers.filter(u => !u.is_admin && u.discord_id !== '__admin__' && u.discord_id !== 'local');
+  container.innerHTML = eligible.length === 0
+    ? '<p style="color:var(--text2);font-size:.85rem">Aucun utilisateur disponible.</p>'
+    : eligible.map(u => `
         <label class="assignee-checkbox">
           <input type="checkbox" value="${u.id}" ${selectedIds.includes(u.id) ? 'checked' : ''}/>
           ${escapeHtml(u.username)}
@@ -1229,6 +1245,8 @@ function openNewOrderModal() {
   });
   document.getElementById('confirm-order').style.display = '';
   document.getElementById('o-status-group').style.display = 'none';
+  const spg = document.getElementById('o-sale-price-group');
+  if (spg) { spg.style.display = 'none'; document.getElementById('o-sale-price').value = ''; }
   document.getElementById('o-client').value = '';
   populateOrderItemSelect();
   populateAssigneeCheckboxes();
@@ -1260,6 +1278,13 @@ function openEditOrderModal(id) {
   statusGroup.style.display = '';
   document.getElementById('o-status').value = o.status || 'pending';
 
+  // Prix de vente — visible si statut = done
+  const salePriceGroup = document.getElementById('o-sale-price-group');
+  if (salePriceGroup) {
+    salePriceGroup.style.display = o.status === 'done' ? '' : 'none';
+    document.getElementById('o-sale-price').value = o.sale_price ?? '';
+  }
+
   populateOrderItemSelect(o.item_id);
   populateAssigneeCheckboxes(o.assignees.map(u => u.id));
   if (!canAct) {
@@ -1271,6 +1296,11 @@ function openEditOrderModal(id) {
   const sel = document.getElementById('o-item');
   if (sel) sel.value = o.item_id;
   updateOrderIngredientsPreview();
+}
+
+function onOrderStatusChange(val) {
+  const group = document.getElementById('o-sale-price-group');
+  if (group) group.style.display = val === 'done' ? '' : 'none';
 }
 
 function closeOrderModal() {
@@ -1316,7 +1346,9 @@ document.getElementById('confirm-order').addEventListener('click', async () => {
 
   const status = document.getElementById('o-status')?.value || 'pending';
   const client = document.getElementById('o-client')?.value?.trim() || null;
-  const body = { item_id: parseInt(item_id), quantity, deadline, user_ids, status, client };
+  const salePriceRaw = document.getElementById('o-sale-price')?.value?.trim();
+  const sale_price = status === 'done' && salePriceRaw !== '' ? (parseInt(salePriceRaw) || null) : null;
+  const body = { item_id: parseInt(item_id), quantity, deadline, user_ids, status, client, sale_price };
   const r = id
     ? await api.put(`/api/orders/${id}`, body)
     : await api.post('/api/orders', body);
