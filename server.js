@@ -473,6 +473,37 @@ async function botPost(path, body, token) {
   });
 }
 
+async function botPatch(path, body, token) {
+  return fetch(`https://discord.com/api/v10${path}`, {
+    method: 'PATCH',
+    headers: { 'Authorization': `Bot ${token}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  });
+}
+
+// Édite le message Discord d'une commande si on a son ID
+async function patchOrderMessage(orderId, token, channelId) {
+  const order = db.prepare(`
+    SELECT o.*, oi.name AS item_name
+    FROM orders o JOIN order_items oi ON o.item_id = oi.id
+    WHERE o.id = ?
+  `).get(orderId);
+  if (!order?.discord_message_id || !channelId) return;
+
+  const assignees = db.prepare(`
+    SELECT u.username FROM order_assignments oa JOIN users u ON oa.user_id = u.id WHERE oa.order_id = ?
+  `).all(orderId);
+  const deadlineStr   = order.deadline ? new Date(order.deadline).toLocaleDateString('fr-FR') : 'Non définie';
+  const assigneeNames = assignees.map(u => u.username).join(', ') || '—';
+
+  const embed = buildOrderEmbed(orderId, order.item_name, order.quantity, order.status, assigneeNames, deadlineStr);
+  try {
+    await botPatch(`/channels/${channelId}/messages/${order.discord_message_id}`, embed, token);
+  } catch (e) {
+    console.error('patchOrderMessage error:', e.message);
+  }
+}
+
 async function verifyDiscordSig(rawBody, signature, timestamp, publicKeyHex) {
   try {
     const key = await webcrypto.subtle.importKey(
@@ -488,7 +519,7 @@ async function verifyDiscordSig(rawBody, signature, timestamp, publicKeyHex) {
 
 function buildOrderEmbed(orderId, itemName, quantity, status, assigneeNames, deadlineStr) {
   const statusLabel = { pending: '⏳ En attente', in_progress: '🔄 En cours', to_deliver: '📦 À livrer', done: '✅ Terminée' }[status] || '⏳ En attente';
-  const color       = { pending: 0xe67e22, in_progress: 0x3498db, done: 0x3fb950 }[status] || 0xe67e22;
+  const color       = { pending: 0x7480a0, in_progress: 0x58a6ff, to_deliver: 0xbc8cff, done: 0x3ab96b }[status] || 0x7480a0;
 
   const embeds = [{
     title: '📦 Nouvelle commande !',
@@ -829,7 +860,11 @@ app.post('/api/orders', async (req, res) => {
 
       const assigneeNames = assignees.map(u => u.username).join(', ') || '—';
       const embed = buildOrderEmbed(orderId, item.name, quantity, 'pending', assigneeNames, deadlineStr);
-      await botPost(`/channels/${channelId}/messages`, { content: mentions || null, ...embed }, token);
+      const msgRes = await botPost(`/channels/${channelId}/messages`, { content: mentions || null, ...embed }, token);
+      if (msgRes.ok) {
+        const msgData = await msgRes.json();
+        if (msgData.id) db.prepare('UPDATE orders SET discord_message_id=? WHERE id=?').run(msgData.id, orderId);
+      }
     } catch (e) {
       console.error('Order notification error:', e.message);
     }
@@ -858,6 +893,14 @@ app.put('/api/orders/:id', (req, res) => {
     for (const uid of user_ids) ins.run(req.params.id, uid);
   }
   broadcast('orders:changed', {});
+
+  // Patch du message Discord si le statut a changé
+  const token     = getSetting('discord_bot_token');
+  const channelId = getSetting('discord_notify_channel_id');
+  if (token && channelId && newStatus !== order.status) {
+    patchOrderMessage(req.params.id, token, channelId).catch(() => {});
+  }
+
   res.json({ success: true });
 });
 
