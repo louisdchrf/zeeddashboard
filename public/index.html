@@ -59,11 +59,11 @@
 <div id="header">
   <h1>GTA V — Drug Map</h1>
   <nav>
-    <button class="tab-btn" data-tab="map">Carte</button>
-    <button class="tab-btn" data-tab="merchandise">Marchandises</button>
-    <button class="tab-btn active" data-tab="list">Plants actifs</button>
-    <button class="tab-btn" data-tab="orders">Commandes</button>
+    <button class="tab-btn active" data-tab="orders">Commandes</button>
     <button class="tab-btn" data-tab="inventory">Inventaire</button>
+    <button class="tab-btn" data-tab="map">Carte</button>
+    <button class="tab-btn" data-tab="list">Plants actifs</button>
+    <button class="tab-btn" data-tab="merchandise">Marchandises</button>
     <button class="tab-btn" data-tab="recipes">Recettes</button>
     <button class="tab-btn" data-tab="stats">Stats</button>
     <button class="tab-btn tab-admin" data-tab="settings" style="display:none">Paramètres</button>
@@ -98,7 +98,7 @@
 </div>
 
 <!-- ── TAB: Plants actifs ── -->
-<div id="tab-list" class="tab-content active">
+<div id="tab-list" class="tab-content">
   <div class="section-header">
     <h2>Plants actifs</h2>
     <div class="list-header-right">
@@ -421,7 +421,7 @@
 </div>
 
 <!-- ── TAB: Commandes ── -->
-<div id="tab-orders" class="tab-content">
+<div id="tab-orders" class="tab-content active">
   <div class="section-header">
     <h2>Commandes</h2>
     <div style="display:flex;gap:8px">
@@ -533,25 +533,25 @@
 
 <!-- ── Bottom nav (mobile/tablette) ── -->
 <div id="bottom-nav">
-  <button class="bnav-btn" data-tab="map">
-    <span class="bnav-icon">🗺️</span>
-    <span class="bnav-label">Carte</span>
-  </button>
-  <button class="bnav-btn active" data-tab="list">
-    <span class="bnav-icon">🌿</span>
-    <span class="bnav-label">Plants</span>
-  </button>
-  <button class="bnav-btn" data-tab="merchandise">
-    <span class="bnav-icon">📦</span>
-    <span class="bnav-label">Marchés</span>
-  </button>
-  <button class="bnav-btn" data-tab="orders">
+  <button class="bnav-btn active" data-tab="orders">
     <span class="bnav-icon">🛒</span>
     <span class="bnav-label">Commandes</span>
   </button>
   <button class="bnav-btn" data-tab="inventory">
     <span class="bnav-icon">📋</span>
     <span class="bnav-label">Inventaire</span>
+  </button>
+  <button class="bnav-btn" data-tab="map">
+    <span class="bnav-icon">🗺️</span>
+    <span class="bnav-label">Carte</span>
+  </button>
+  <button class="bnav-btn" data-tab="list">
+    <span class="bnav-icon">🌿</span>
+    <span class="bnav-label">Plants</span>
+  </button>
+  <button class="bnav-btn" data-tab="merchandise">
+    <span class="bnav-icon">📦</span>
+    <span class="bnav-label">Marchés</span>
   </button>
   <button class="bnav-btn" data-tab="recipes">
     <span class="bnav-icon">⚗️</span>
