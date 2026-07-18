@@ -1451,21 +1451,31 @@ function openStocksModal(itemId) {
   document.getElementById('inv-stocks-item-id').value = itemId;
 
   const stockMap = {};
-  for (const s of (item.stocks || [])) stockMap[s.user_id] = s.quantity;
+  for (const s of (item.stocks || [])) stockMap[s.user_id] = s;
 
   const rows = document.getElementById('inv-stocks-rows');
   const members = allUsers.filter(u => !u.is_admin && u.discord_id !== '__admin__' && u.discord_id !== 'local');
-  rows.innerHTML = members.map(u => `
+  rows.innerHTML = members.map(u => {
+    const s = stockMap[u.id];
+    let meta = '';
+    if (s?.updated_at) {
+      const d = new Date(s.updated_at + 'Z');
+      const dateStr = d.toLocaleDateString('fr-FR') + ' ' + d.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
+      const by = s.updated_by_name ? ` par ${escapeHtml(s.updated_by_name)}` : '';
+      meta = `<span class="inv-stocks-meta">${dateStr}${by}</span>`;
+    }
+    return `
     <div class="inv-stocks-row">
       <label class="inv-stocks-label">
         ${u.avatar ? `<img src="https://cdn.discordapp.com/avatars/${u.discord_id}/${u.avatar}.png" class="inv-stocks-avatar"/>` : '<span class="inv-stocks-avatar-placeholder"></span>'}
         ${escapeHtml(u.username)}
+        ${meta}
       </label>
       <input type="number" class="inv-stocks-qty" data-user-id="${u.id}"
-             value="${stockMap[u.id] || 0}" min="0" max="9999"
+             value="${s?.quantity ?? 0}" min="0" max="9999"
              oninput="updateInvStocksTotal()"/>
-    </div>
-  `).join('');
+    </div>`;
+  }).join('');
 
   updateInvStocksTotal();
   document.getElementById('modal-inv-stocks').style.display = 'flex';

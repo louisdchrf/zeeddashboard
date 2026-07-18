@@ -767,9 +767,11 @@ app.get('/api/inventory', (_, res) => {
   `).all();
 
   const stocks = db.prepare(`
-    SELECT s.item_id, s.user_id, s.quantity, s.updated_at, u.username
+    SELECT s.item_id, s.user_id, s.quantity, s.updated_at, u.username,
+           ub.username AS updated_by_name
     FROM inventory_stock s
     JOIN users u ON s.user_id = u.id
+    LEFT JOIN users ub ON s.updated_by = ub.id
     ORDER BY u.username
   `).all();
 
@@ -793,12 +795,13 @@ app.put('/api/inventory/:itemId', (req, res) => {
   const newQty = Math.max(0, (current?.quantity || 0) + delta);
 
   db.prepare(`
-    INSERT INTO inventory_stock (item_id, user_id, quantity, updated_at)
-    VALUES (?, ?, ?, datetime('now'))
+    INSERT INTO inventory_stock (item_id, user_id, quantity, updated_at, updated_by)
+    VALUES (?, ?, ?, datetime('now'), ?)
     ON CONFLICT(item_id, user_id) DO UPDATE SET
       quantity   = excluded.quantity,
-      updated_at = excluded.updated_at
-  `).run(req.params.itemId, req.session.userId, newQty);
+      updated_at = excluded.updated_at,
+      updated_by = excluded.updated_by
+  `).run(req.params.itemId, req.session.userId, newQty, req.session.userId);
 
   db.prepare(`
     INSERT INTO stock_movements (item_id, user_id, delta, qty_after, created_at)
@@ -846,9 +849,9 @@ app.put('/api/inventory/:itemId/stocks', (req, res) => {
   if (!item) return res.status(404).json({ error: 'Article introuvable' });
 
   const upsert     = db.prepare(`
-    INSERT INTO inventory_stock (item_id, user_id, quantity, updated_at)
-    VALUES (?, ?, ?, datetime('now'))
-    ON CONFLICT(item_id, user_id) DO UPDATE SET quantity=excluded.quantity, updated_at=excluded.updated_at
+    INSERT INTO inventory_stock (item_id, user_id, quantity, updated_at, updated_by)
+    VALUES (?, ?, ?, datetime('now'), ?)
+    ON CONFLICT(item_id, user_id) DO UPDATE SET quantity=excluded.quantity, updated_at=excluded.updated_at, updated_by=excluded.updated_by
   `);
   const getOld     = db.prepare('SELECT quantity FROM inventory_stock WHERE item_id=? AND user_id=?');
   const insMov     = db.prepare(`INSERT INTO stock_movements (item_id, user_id, delta, qty_after, created_at) VALUES (?, ?, ?, ?, datetime('now'))`);
@@ -859,7 +862,7 @@ app.put('/api/inventory/:itemId/stocks', (req, res) => {
       const old   = getOld.get(req.params.itemId, user_id);
       const delta = qty - (old?.quantity || 0);
       if (delta !== 0) insMov.run(req.params.itemId, user_id, delta, qty);
-      upsert.run(req.params.itemId, user_id, qty);
+      upsert.run(req.params.itemId, user_id, qty, req.session.userId);
     }
   })();
 

@@ -1579,6 +1579,13 @@ nav { display: flex; gap: 2px; }
   font-size: 0.85rem;
   color: var(--text);
   flex: 1;
+  flex-wrap: wrap;
+}
+.inv-stocks-meta {
+  font-size: 0.7rem;
+  color: var(--text2);
+  font-weight: 400;
+  margin-left: 2px;
 }
 .inv-stocks-avatar {
   width: 24px;
