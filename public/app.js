@@ -109,6 +109,7 @@ function switchTab(tab) {
   if (tab === 'orders')    renderOrders();
   if (tab === 'inventory') renderInventory();
   if (tab === 'recipes')   renderRecipes();
+  if (tab === 'stats')     loadAndRenderStats();
 }
 
 document.querySelectorAll('.tab-btn, .bnav-btn').forEach(btn =>
@@ -682,8 +683,53 @@ function formatDuration(minutes) {
   return `${h}h ${m}min`;
 }
 
-// ── Auto-refresh 60s ──────────────────────────────────────────────────────────
+// ── Socket.io — temps réel ────────────────────────────────────────────────────
+let socket = null;
+
+function initSocket() {
+  socket = io();
+
+  socket.on('points:changed', async () => {
+    await loadPoints();
+    if (document.querySelector('.leaflet-popup')) points.forEach(p => refreshPopup(p.id));
+  });
+
+  socket.on('orders:changed', async () => {
+    await loadOrders();
+    const ordersTab = document.getElementById('tab-orders');
+    if (ordersTab?.classList.contains('active')) renderOrders();
+  });
+
+  socket.on('inventory:changed', async () => {
+    await loadInventory();
+    await loadRecipes(); // stock mis à jour → recettes aussi
+    const invTab = document.getElementById('tab-inventory');
+    if (invTab?.classList.contains('active')) renderInventory();
+    const recTab = document.getElementById('tab-recipes');
+    if (recTab?.classList.contains('active')) renderRecipes();
+  });
+
+  socket.on('users:online', (users) => renderPresence(users));
+}
+
+function renderPresence(users) {
+  const el = document.getElementById('presence');
+  if (!el) return;
+  el.innerHTML = users.map(u => {
+    const hasAvatar = u.avatar && u.discord_id && u.discord_id !== '__admin__';
+    if (hasAvatar) {
+      return `<img class="presence-avatar" src="https://cdn.discordapp.com/avatars/${u.discord_id}/${u.avatar}.png" title="${escapeHtml(u.username)}" alt="${escapeHtml(u.username)}"/>`;
+    }
+    return `<span class="presence-dot" title="${escapeHtml(u.username)}">${escapeHtml(u.username[0].toUpperCase())}</span>`;
+  }).join('');
+}
+
+// Fallback poll si socket déconnecté
 setInterval(async () => {
+  if (socket?.connected) {
+    if (document.querySelector('.leaflet-popup')) points.forEach(p => refreshPopup(p.id));
+    return;
+  }
   await loadPoints();
   if (document.querySelector('.leaflet-popup')) points.forEach(p => refreshPopup(p.id));
 }, 60_000);
@@ -744,6 +790,102 @@ async function adjustInventory(itemId, direction) {
   if (item) item.quantity = r.quantity;
   const el = document.getElementById(`inv-qty-${itemId}`);
   if (el) el.textContent = r.quantity;
+}
+
+// ── Stats ─────────────────────────────────────────────────────────────────────
+async function loadAndRenderStats() {
+  const data = await api.get('/api/stats');
+  if (!data) return;
+
+  // KPIs
+  document.getElementById('stats-kpis').innerHTML = `
+    <div class="kpi-card">
+      <div class="kpi-value">${data.totals?.plants || 0}</div>
+      <div class="kpi-label">Plants récoltés</div>
+    </div>
+    <div class="kpi-card">
+      <div class="kpi-value">${data.totals?.harvests || 0}</div>
+      <div class="kpi-label">Récoltes effectuées</div>
+    </div>
+    <div class="kpi-card">
+      <div class="kpi-value">${data.byMerch.length}</div>
+      <div class="kpi-label">Types de drogue</div>
+    </div>
+    <div class="kpi-card">
+      <div class="kpi-value">${data.byPlayer.length}</div>
+      <div class="kpi-label">Membres actifs</div>
+    </div>
+  `;
+
+  // Par marchandise — barres CSS
+  const maxMerch = Math.max(...data.byMerch.map(m => m.total), 1);
+  document.getElementById('stats-by-merch').innerHTML = data.byMerch.length === 0
+    ? '<p class="empty-state">Aucune récolte enregistrée</p>'
+    : data.byMerch.map(m => `
+      <div class="stat-bar-row">
+        <span class="stat-bar-label">${escapeHtml(m.merchandise_name)}</span>
+        <div class="stat-bar-track">
+          <div class="stat-bar-fill" style="width:${Math.round(m.total/maxMerch*100)}%;background:${escapeHtml(m.merchandise_color)}"></div>
+        </div>
+        <span class="stat-bar-value">${m.total}</span>
+      </div>
+    `).join('');
+
+  // Leaderboard
+  document.getElementById('stats-by-player').innerHTML = data.byPlayer.length === 0
+    ? '<p class="empty-state">Aucune récolte enregistrée</p>'
+    : data.byPlayer.map((p, i) => {
+      const hasAvatar = p.avatar && p.discord_id && p.discord_id !== '__admin__';
+      const avatarHtml = hasAvatar
+        ? `<img class="presence-avatar" src="https://cdn.discordapp.com/avatars/${p.discord_id}/${p.avatar}.png" alt=""/>`
+        : `<span class="presence-dot">${(p.username||'?')[0].toUpperCase()}</span>`;
+      return `<div class="leaderboard-row">
+        <span class="lb-rank">#${i+1}</span>
+        ${avatarHtml}
+        <span class="lb-name">${escapeHtml(p.username || 'Inconnu')}</span>
+        <span class="lb-total">${p.total} plants</span>
+        <span class="lb-harvests">(${p.harvests} récoltes)</span>
+      </div>`;
+    }).join('');
+
+  // Graphe 7 jours
+  const days7El = document.getElementById('stats-last7');
+  if (data.last7days.length === 0) {
+    days7El.innerHTML = '<p class="empty-state">Pas de données sur 7 jours</p>';
+  } else {
+    const max7 = Math.max(...data.last7days.map(d => d.total), 1);
+    const allDays = [];
+    for (let i = 6; i >= 0; i--) {
+      const d = new Date(); d.setDate(d.getDate() - i);
+      allDays.push(d.toISOString().slice(0, 10));
+    }
+    days7El.innerHTML = `<div class="bar-chart-inner">${allDays.map(day => {
+      const found = data.last7days.find(d => d.day === day);
+      const total = found?.total || 0;
+      const h = Math.round(total / max7 * 100);
+      const label = new Date(day + 'T12:00:00').toLocaleDateString('fr-FR', { weekday: 'short', day: 'numeric' });
+      return `<div class="bar-col">
+        <div class="bar-tip">${total || ''}</div>
+        <div class="bar-body" style="height:${h}%"></div>
+        <div class="bar-label">${label}</div>
+      </div>`;
+    }).join('')}</div>`;
+  }
+
+  // Feed récent
+  document.getElementById('stats-feed').innerHTML = data.recentFeed.length === 0
+    ? '<p class="empty-state">Aucune récolte enregistrée</p>'
+    : data.recentFeed.map(h => {
+      const when = new Date(h.harvested_at + 'Z').toLocaleString('fr-FR', { day:'2-digit', month:'2-digit', hour:'2-digit', minute:'2-digit' });
+      return `<div class="feed-row">
+        <span class="feed-dot" style="background:${escapeHtml(h.merchandise_color)}"></span>
+        <span class="feed-merch">${escapeHtml(h.merchandise_name)}</span>
+        <span class="feed-qty">×${h.quantity}</span>
+        ${h.location_name ? `<span class="feed-loc">📍 ${escapeHtml(h.location_name)}</span>` : ''}
+        <span class="feed-player">${escapeHtml(h.username || '—')}</span>
+        <span class="feed-time">${when}</span>
+      </div>`;
+    }).join('');
 }
 
 // ── Recettes ──────────────────────────────────────────────────────────────────
@@ -1057,4 +1199,5 @@ async function deleteOrderItem(id) {
   await loadInventory();
   await loadRecipes();
   if (user.is_admin) await loadSettings();
+  initSocket();
 })();

@@ -65,9 +65,11 @@
     <button class="tab-btn" data-tab="orders">Commandes</button>
     <button class="tab-btn" data-tab="inventory">Inventaire</button>
     <button class="tab-btn" data-tab="recipes">Recettes</button>
+    <button class="tab-btn" data-tab="stats">Stats</button>
     <button class="tab-btn tab-admin" data-tab="settings" style="display:none">Paramètres</button>
   </nav>
   <div class="user-info">
+    <div id="presence" class="presence-list" title="Membres connectés"></div>
     <span id="app-version" class="app-version"></span>
     <img id="user-avatar" class="user-avatar" src="" alt=""/>
     <span id="user-name"></span>
@@ -138,6 +140,32 @@
     </div>
   </div>
   <div id="recipes-grid" class="recipes-grid"></div>
+</div>
+
+<!-- ── TAB: Stats ── -->
+<div id="tab-stats" class="tab-content">
+  <div class="section-header"><h2>Stats de production</h2></div>
+  <div id="stats-content">
+    <div class="stats-kpi-row" id="stats-kpis"></div>
+    <div class="stats-grid">
+      <div class="stats-card">
+        <h3>Par marchandise</h3>
+        <div id="stats-by-merch"></div>
+      </div>
+      <div class="stats-card">
+        <h3>Leaderboard</h3>
+        <div id="stats-by-player"></div>
+      </div>
+      <div class="stats-card stats-card-wide">
+        <h3>Activité — 7 derniers jours</h3>
+        <div id="stats-last7" class="bar-chart"></div>
+      </div>
+      <div class="stats-card stats-card-wide">
+        <h3>Récoltes récentes</h3>
+        <div id="stats-feed"></div>
+      </div>
+    </div>
+  </div>
 </div>
 
 <!-- ── TAB: Paramètres (admin seulement) ── -->
@@ -506,6 +534,10 @@
     <span class="bnav-icon">⚗️</span>
     <span class="bnav-label">Recettes</span>
   </button>
+  <button class="bnav-btn" data-tab="stats">
+    <span class="bnav-icon">📊</span>
+    <span class="bnav-label">Stats</span>
+  </button>
   <button class="bnav-btn bnav-admin" data-tab="settings" style="display:none">
     <span class="bnav-icon">⚙️</span>
     <span class="bnav-label">Admin</span>
@@ -552,6 +584,7 @@
 </datalist>
 
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="/socket.io/socket.io.js"></script>
 <script src="app.js"></script>
 </body>
 </html>

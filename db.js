@@ -71,6 +71,19 @@ db.exec(`
     updated_at TEXT NOT NULL DEFAULT (datetime('now'))
   );
 
+  CREATE TABLE IF NOT EXISTS harvest_log (
+    id               INTEGER PRIMARY KEY AUTOINCREMENT,
+    point_id         INTEGER,
+    merchandise_id   INTEGER NOT NULL,
+    merchandise_name TEXT NOT NULL,
+    merchandise_color TEXT DEFAULT '#4CAF50',
+    quantity         INTEGER NOT NULL DEFAULT 1,
+    user_id          INTEGER REFERENCES users(id),
+    visibility       TEXT DEFAULT 'shared',
+    location_name    TEXT DEFAULT '',
+    harvested_at     TEXT NOT NULL DEFAULT (datetime('now'))
+  );
+
   CREATE TABLE IF NOT EXISTS recipes (
     id            INTEGER PRIMARY KEY AUTOINCREMENT,
     product_id    INTEGER NOT NULL REFERENCES order_items(id) ON DELETE CASCADE,

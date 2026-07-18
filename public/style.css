@@ -945,3 +945,235 @@ nav { display: flex; gap: 4px; }
 
 .stock-ok  { color: var(--green); }
 .stock-low { color: var(--red, #f85149); }
+
+/* ── Présence ────────────────────────────────────────────────────────────────── */
+
+.presence-list {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin-right: 8px;
+}
+
+.presence-avatar {
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  border: 2px solid var(--green);
+  object-fit: cover;
+}
+
+.presence-dot {
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  background: var(--accent);
+  border: 2px solid var(--green);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.7rem;
+  font-weight: 700;
+  color: #fff;
+  cursor: default;
+}
+
+/* ── Stats ───────────────────────────────────────────────────────────────────── */
+
+.stats-kpi-row {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+  gap: 12px;
+  margin-bottom: 20px;
+}
+
+.kpi-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 16px;
+  text-align: center;
+}
+
+.kpi-value {
+  font-size: 2rem;
+  font-weight: 800;
+  color: var(--green);
+  line-height: 1;
+}
+
+.kpi-label {
+  font-size: 0.75rem;
+  color: var(--text2);
+  margin-top: 6px;
+}
+
+.stats-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 14px;
+}
+
+@media (max-width: 700px) {
+  .stats-grid { grid-template-columns: 1fr; }
+}
+
+.stats-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 16px;
+}
+
+.stats-card h3 {
+  font-size: 0.75rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+  color: var(--text2);
+  margin: 0 0 12px 0;
+}
+
+.stats-card-wide {
+  grid-column: 1 / -1;
+}
+
+.empty-state {
+  color: var(--text2);
+  font-size: 0.85rem;
+  padding: 8px 0;
+}
+
+/* Barres marchandises */
+.stat-bar-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.stat-bar-label {
+  width: 160px;
+  font-size: 0.82rem;
+  flex-shrink: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.stat-bar-track {
+  flex: 1;
+  height: 8px;
+  background: var(--border);
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+.stat-bar-fill {
+  height: 100%;
+  border-radius: 4px;
+  transition: width 0.4s ease;
+  min-width: 4px;
+}
+
+.stat-bar-value {
+  width: 32px;
+  text-align: right;
+  font-size: 0.8rem;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Leaderboard */
+.leaderboard-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 0;
+  border-bottom: 1px solid var(--border);
+  font-size: 0.85rem;
+}
+
+.leaderboard-row:last-child { border-bottom: none; }
+
+.lb-rank {
+  width: 28px;
+  font-weight: 700;
+  color: var(--text2);
+  font-size: 0.75rem;
+}
+
+.lb-name { flex: 1; font-weight: 600; }
+.lb-total { font-weight: 700; color: var(--green); }
+.lb-harvests { color: var(--text2); font-size: 0.78rem; }
+
+/* Graphe 7 jours */
+.bar-chart { padding: 8px 0; }
+
+.bar-chart-inner {
+  display: flex;
+  align-items: flex-end;
+  gap: 6px;
+  height: 100px;
+  padding-bottom: 24px;
+  position: relative;
+}
+
+.bar-col {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  height: 100%;
+  justify-content: flex-end;
+  position: relative;
+}
+
+.bar-body {
+  width: 100%;
+  background: var(--accent);
+  border-radius: 3px 3px 0 0;
+  min-height: 2px;
+  transition: height 0.3s ease;
+}
+
+.bar-tip {
+  font-size: 0.7rem;
+  color: var(--text2);
+  margin-bottom: 2px;
+  min-height: 14px;
+}
+
+.bar-label {
+  position: absolute;
+  bottom: -20px;
+  font-size: 0.65rem;
+  color: var(--text2);
+  white-space: nowrap;
+}
+
+/* Feed récent */
+.feed-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 0;
+  border-bottom: 1px solid var(--border);
+  font-size: 0.82rem;
+  flex-wrap: wrap;
+}
+
+.feed-row:last-child { border-bottom: none; }
+
+.feed-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.feed-merch { font-weight: 600; }
+.feed-qty { color: var(--green); font-weight: 700; }
+.feed-loc { color: var(--text2); font-size: 0.78rem; }
+.feed-player { margin-left: auto; color: var(--text2); }
+.feed-time { color: var(--text2); font-size: 0.75rem; white-space: nowrap; }

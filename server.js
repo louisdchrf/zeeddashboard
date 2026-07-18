@@ -1,9 +1,13 @@
 const express = require('express');
+const http    = require('http');
+const { Server } = require('socket.io');
 const session = require('express-session');
 const { scryptSync, randomBytes, timingSafeEqual, webcrypto } = require('crypto');
 const db = require('./db');
 
-const app = express();
+const app    = express();
+const server = http.createServer(app);
+const io     = new Server(server, { cors: { origin: false } });
 // Capture du body brut avant parsing (nécessaire pour vérifier la signature Discord)
 app.use(express.json({ verify: (req, _, buf) => { req.rawBody = buf; } }));
 
@@ -34,7 +38,8 @@ class SQLiteStore extends session.Store {
 }
 
 app.set('trust proxy', 1); // reverse proxy (nginx/caddy)
-app.use(session({
+
+const sessionMiddleware = session({
   store: new SQLiteStore(db),
   secret: process.env.SESSION_SECRET || 'gta-dashboard-dev-secret',
   resave: false,
@@ -45,7 +50,30 @@ app.use(session({
     sameSite: 'lax',
     secure: process.env.NODE_ENV === 'production',
   },
-}));
+});
+app.use(sessionMiddleware);
+
+// ── Socket.io — auth + présence ───────────────────────────────────────────────
+io.use((socket, next) => sessionMiddleware(socket.request, {}, next));
+
+const onlineUsers = new Map(); // socketId → {id, username, avatar, discord_id}
+
+io.on('connection', (socket) => {
+  const userId = socket.request.session?.userId;
+  if (!userId) { socket.disconnect(); return; }
+  const user = db.prepare('SELECT id, username, avatar, discord_id FROM users WHERE id=?').get(userId);
+  if (!user) { socket.disconnect(); return; }
+
+  onlineUsers.set(socket.id, user);
+  io.emit('users:online', [...onlineUsers.values()]);
+
+  socket.on('disconnect', () => {
+    onlineUsers.delete(socket.id);
+    io.emit('users:online', [...onlineUsers.values()]);
+  });
+});
+
+function broadcast(event, data) { io.emit(event, data); }
 
 app.use(express.static('public'));
 
@@ -291,6 +319,7 @@ app.post('/api/points', (req, res) => {
   const r = db.prepare(
     'INSERT INTO points (merchandise_id, lat, lng, position_type, quantity, environment, planted_at, notes, user_id, location_name, visibility, on_map) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
   ).run(merchandise_id, lat, lng, position_type, quantity, environment, planted_at, notes, req.session.userId, location_name, visibility, on_map);
+  broadcast('points:changed', {});
   res.json({ id: r.lastInsertRowid, planted_at });
 });
 
@@ -320,6 +349,7 @@ app.put('/api/points/:id', (req, res) => {
         user_id=COALESCE(user_id, ?)
     WHERE id=?
   `).run(merchandise_id, position_type, quantity, environment, planted_at, notes, location_name, visibility || 'shared', alreadyMature, req.session.userId, req.params.id);
+  broadcast('points:changed', {});
   res.json({ success: true });
 });
 
@@ -331,13 +361,26 @@ app.put('/api/points/:id/harvest', (req, res) => {
   if (!user?.is_admin && point.user_id !== req.session.userId && point.visibility !== 'shared') {
     return res.status(403).json({ error: 'Non autorisé' });
   }
+  const pointData = db.prepare(`
+    SELECT p.*, m.name AS merchandise_name, m.color AS merchandise_color
+    FROM points p JOIN merchandise m ON p.merchandise_id = m.id WHERE p.id=?
+  `).get(req.params.id);
   db.prepare("UPDATE points SET status='harvested' WHERE id=?").run(req.params.id);
+  if (pointData) {
+    db.prepare(`
+      INSERT INTO harvest_log (point_id, merchandise_id, merchandise_name, merchandise_color, quantity, user_id, visibility, location_name)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+    `).run(pointData.id, pointData.merchandise_id, pointData.merchandise_name, pointData.merchandise_color,
+           pointData.quantity, req.session.userId, pointData.visibility || 'shared', pointData.location_name || '');
+  }
+  broadcast('points:changed', {});
   res.json({ success: true });
 });
 
 app.delete('/api/points/:id', (req, res) => {
   if (!requirePointAccess(req, res, req.params.id)) return;
   db.prepare('DELETE FROM points WHERE id=?').run(req.params.id);
+  broadcast('points:changed', {});
   res.json({ success: true });
 });
 
@@ -592,6 +635,44 @@ setInterval(async () => {
   }
 }, 60_000);
 
+// ── Stats ─────────────────────────────────────────────────────────────────────
+
+app.get('/api/stats', (_, res) => {
+  const byMerch = db.prepare(`
+    SELECT merchandise_name, merchandise_color, SUM(quantity) AS total, COUNT(*) AS harvests
+    FROM harvest_log GROUP BY merchandise_name ORDER BY total DESC
+  `).all();
+
+  const byPlayer = db.prepare(`
+    SELECT u.username, u.avatar, u.discord_id,
+           SUM(h.quantity) AS total, COUNT(*) AS harvests
+    FROM harvest_log h
+    LEFT JOIN users u ON h.user_id = u.id
+    GROUP BY h.user_id ORDER BY total DESC LIMIT 10
+  `).all();
+
+  const last7days = db.prepare(`
+    SELECT date(harvested_at) AS day, SUM(quantity) AS total
+    FROM harvest_log
+    WHERE harvested_at >= datetime('now', '-6 days')
+    GROUP BY day ORDER BY day
+  `).all();
+
+  const recentFeed = db.prepare(`
+    SELECT h.merchandise_name, h.merchandise_color, h.quantity, h.location_name,
+           h.harvested_at, h.visibility, u.username, u.avatar, u.discord_id
+    FROM harvest_log h
+    LEFT JOIN users u ON h.user_id = u.id
+    ORDER BY h.harvested_at DESC LIMIT 15
+  `).all();
+
+  const totals = db.prepare(`
+    SELECT SUM(quantity) AS plants, COUNT(*) AS harvests FROM harvest_log
+  `).get();
+
+  res.json({ byMerch, byPlayer, last7days, recentFeed, totals });
+});
+
 // ── Recettes ──────────────────────────────────────────────────────────────────
 
 app.get('/api/recipes', (_, res) => {
@@ -647,6 +728,7 @@ app.put('/api/inventory/:itemId', (req, res) => {
       updated_by = excluded.updated_by,
       updated_at = excluded.updated_at
   `).run(req.params.itemId, newQty, req.session.userId);
+  broadcast('inventory:changed', {});
   res.json({ quantity: newQty });
 });
 
@@ -753,6 +835,7 @@ app.post('/api/orders', async (req, res) => {
     }
   }
 
+  broadcast('orders:changed', {});
   res.json({ id: orderId });
 });
 
@@ -772,6 +855,7 @@ app.put('/api/orders/:id', (req, res) => {
     const ins = db.prepare('INSERT OR IGNORE INTO order_assignments (order_id, user_id) VALUES (?, ?)');
     for (const uid of user_ids) ins.run(req.params.id, uid);
   }
+  broadcast('orders:changed', {});
   res.json({ success: true });
 });
 
@@ -779,6 +863,7 @@ app.post('/api/orders/:id/progress', (req, res) => {
   const order = db.prepare('SELECT * FROM orders WHERE id=?').get(req.params.id);
   if (!order) return res.status(404).json({ error: 'Introuvable' });
   db.prepare("UPDATE orders SET status='in_progress' WHERE id=? AND status='pending'").run(req.params.id);
+  broadcast('orders:changed', {});
   res.json({ success: true });
 });
 
@@ -789,6 +874,7 @@ app.post('/api/orders/:id/complete', (req, res) => {
   if (!user?.is_admin && order.created_by !== req.session.userId)
     return res.status(403).json({ error: 'Non autorisé' });
   db.prepare("UPDATE orders SET status='done' WHERE id=?").run(req.params.id);
+  broadcast('orders:changed', {});
   res.json({ success: true });
 });
 
@@ -799,7 +885,8 @@ app.delete('/api/orders/:id', (req, res) => {
   if (!user?.is_admin && order.created_by !== req.session.userId)
     return res.status(403).json({ error: 'Non autorisé' });
   db.prepare('DELETE FROM orders WHERE id=?').run(req.params.id);
+  broadcast('orders:changed', {});
   res.json({ success: true });
 });
 
-app.listen(3000, () => console.log('GTA Dashboard → http://localhost:3000'));
+server.listen(3000, () => console.log('GTA Dashboard → http://localhost:3000'));
