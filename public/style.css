@@ -764,6 +764,60 @@ nav { display: flex; gap: 4px; }
   opacity: .6;
 }
 
+/* ── Preview ingrédients dans modal commande ── */
+.order-ingredients-preview {
+  margin: 0 0 14px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  padding: 10px 12px;
+  background: var(--bg3);
+  font-size: 0.82rem;
+}
+
+.order-ingredients-preview.oip-feasible {
+  border-color: rgba(58,185,107,.35);
+  background: rgba(58,185,107,.05);
+}
+
+.order-ingredients-preview.oip-infeasible {
+  border-color: rgba(224,82,82,.35);
+  background: rgba(224,82,82,.05);
+}
+
+.oip-title {
+  font-size: 0.72rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: .07em;
+  color: var(--text2);
+  margin-bottom: 8px;
+}
+
+.oip-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 4px 0;
+  border-bottom: 1px solid var(--border);
+}
+.oip-row:last-child { border-bottom: none; }
+
+.oip-ing-name { color: var(--text); }
+
+.oip-ing-qty {
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+.oip-ok  { color: var(--green); }
+.oip-low { color: var(--red); }
+
+.oip-stock {
+  font-weight: 400;
+  color: var(--text2);
+  font-size: 0.78rem;
+}
+
 /* ── Commandes ── */
 .order-done td { opacity: 0.5; }
 
