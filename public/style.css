@@ -1,17 +1,22 @@
 * { margin: 0; padding: 0; box-sizing: border-box; }
 
 :root {
-  --bg: #0d1117;
-  --bg2: #161b22;
-  --bg3: #21262d;
-  --border: #30363d;
-  --text: #e6edf3;
-  --text2: #8b949e;
-  --accent: #f0a500;
-  --red: #da3633;
-  --green: #3fb950;
+  --bg: #0d0f14;
+  --bg2: #13161e;
+  --bg3: #1c2030;
+  --border: #272c3a;
+  --text: #ccd6e8;
+  --text2: #7480a0;
+  --accent: #7c6af6;
+  --red: #e05252;
+  --green: #3ab96b;
   --blue: #58a6ff;
   --purple: #bc8cff;
+  /* Aliases */
+  --surface: var(--bg2);
+  --surface2: var(--bg3);
+  --primary: var(--accent);
+  --fg: var(--text);
 }
 
 body {
@@ -338,7 +343,7 @@ nav { display: flex; gap: 4px; }
 
 .btn-primary {
   background: var(--accent);
-  color: #000;
+  color: #fff;
   border: none;
   padding: 7px 16px;
   border-radius: 6px;
@@ -433,7 +438,7 @@ nav { display: flex; gap: 4px; }
   font-size: 0.75rem;
   font-weight: 600;
 }
-.badge.growing { background: rgba(240,165,0,.15); color: var(--accent); }
+.badge.growing { background: rgba(124,106,246,.15); color: var(--accent); }
 .badge.ready   { background: rgba(63,185,80,.15);  color: var(--green); }
 
 .pos-badge {
@@ -567,7 +572,7 @@ nav { display: flex; gap: 4px; }
   justify-content: center;
 }
 .radio-label input { display: none; }
-.radio-label.selected { border-color: var(--accent); color: var(--accent); background: rgba(240,165,0,.08); }
+.radio-label.selected { border-color: var(--accent); color: var(--accent); background: rgba(124,106,246,.1); }
 
 .modal-footer { display: flex; gap: 8px; margin-top: 20px; }
 .btn-cancel {
@@ -584,7 +589,7 @@ nav { display: flex; gap: 4px; }
   flex: 2;
   background: var(--accent);
   border: none;
-  color: #000;
+  color: #fff;
   padding: 8px;
   border-radius: 6px;
   cursor: pointer;
@@ -709,10 +714,17 @@ nav { display: flex; gap: 4px; }
 }
 
 .inv-item-qty {
-  font-size: 2rem;
+  font-size: 1.8rem;
   font-weight: 700;
-  color: var(--accent);
+  color: var(--text);
   line-height: 1;
+}
+.inv-item-qty.qty-zero {
+  color: var(--text2);
+  font-weight: 500;
+}
+.inv-item-qty.qty-positive {
+  color: var(--accent);
 }
 
 .inv-item-controls {

@@ -790,7 +790,7 @@ function renderInventory() {
       ${items.map(item => `
         <div class="inv-item" data-id="${item.id}">
           <div class="inv-item-name">${escapeHtml(item.name)}</div>
-          <div class="inv-item-qty" id="inv-qty-${item.id}">${item.quantity}</div>
+          <div class="inv-item-qty ${item.quantity > 0 ? 'qty-positive' : 'qty-zero'}" id="inv-qty-${item.id}">${item.quantity}</div>
           <div class="inv-item-controls">
             <button class="inv-btn inv-minus" onclick="adjustInventory(${item.id}, -1)">−</button>
             <input class="inv-adj" type="number" id="inv-adj-${item.id}" value="1" min="1" max="999"/>
@@ -812,7 +812,10 @@ async function adjustInventory(itemId, direction) {
   const item = inventory.find(i => i.id === itemId);
   if (item) item.quantity = r.quantity;
   const el = document.getElementById(`inv-qty-${itemId}`);
-  if (el) el.textContent = r.quantity;
+  if (el) {
+    el.textContent = r.quantity;
+    el.className = `inv-item-qty ${r.quantity > 0 ? 'qty-positive' : 'qty-zero'}`;
+  }
 }
 
 // ── Stats ─────────────────────────────────────────────────────────────────────
