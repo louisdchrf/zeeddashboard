@@ -753,6 +753,14 @@ setInterval(async () => {
 let inventory = [];
 // Favoris inventaire (stockés en base, par compte)
 let invFavorites = new Set();
+let invCollapsed = new Set(JSON.parse(localStorage.getItem('inv_collapsed') || '[]'));
+
+function toggleInvSection(key) {
+  if (invCollapsed.has(key)) invCollapsed.delete(key);
+  else invCollapsed.add(key);
+  localStorage.setItem('inv_collapsed', JSON.stringify([...invCollapsed]));
+  renderInventory();
+}
 
 async function loadInvFavorites() {
   const ids = await api.get('/api/inventory/favorites') || [];
@@ -820,21 +828,27 @@ function renderInventory() {
 
   let html = '';
 
+  function renderSection(key, labelHtml, items, extraHeaderClass = '') {
+    const collapsed = invCollapsed.has(key);
+    return `<div class="inv-section">
+      <div class="inv-section-header ${extraHeaderClass}" onclick="toggleInvSection('${key.replace(/'/g, "\\'")}')" style="cursor:pointer;user-select:none">
+        <span class="inv-section-chevron${collapsed ? ' collapsed' : ''}">▾</span>
+        ${labelHtml}
+        <span class="inv-section-count">${items.length}</span>
+      </div>
+      ${collapsed ? '' : `<div class="inv-group-items">${items.map(renderItem).join('')}</div>`}
+    </div>`;
+  }
+
   // Section Favoris en premier
   const favItems = inventory.filter(i => favs.has(i.id));
   if (favItems.length > 0) {
-    html += `<div class="inv-section">
-      <div class="inv-section-header inv-section-fav">★ Favoris <span class="inv-section-count">${favItems.length}</span></div>
-      <div class="inv-group-items">${favItems.map(renderItem).join('')}</div>
-    </div>`;
+    html += renderSection('__favs__', '★ Favoris', favItems, 'inv-section-fav');
   }
 
   // Sections par catégorie
   for (const cat of groupOrder) {
-    html += `<div class="inv-section">
-      <div class="inv-section-header">${escapeHtml(cat)} <span class="inv-section-count">${groups[cat].length}</span></div>
-      <div class="inv-group-items">${groups[cat].map(renderItem).join('')}</div>
-    </div>`;
+    html += renderSection(cat, escapeHtml(cat), groups[cat]);
   }
 
   grid.innerHTML = html;
