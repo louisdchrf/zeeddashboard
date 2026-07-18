@@ -1127,10 +1127,12 @@ function openNewOrderModal() {
     if (el) el.disabled = false;
   });
   document.getElementById('confirm-order').style.display = '';
+  // Cacher la preview d'ingrédients à la création
+  const preview = document.getElementById('order-ingredients-preview');
+  if (preview) preview.style.display = 'none';
   populateOrderItemSelect();
   populateAssigneeCheckboxes();
   document.getElementById('modal-order').style.display = 'flex';
-  updateOrderIngredientsPreview();
 }
 
 function openEditOrderModal(id) {
@@ -1158,6 +1160,10 @@ function openEditOrderModal(id) {
   }
 
   document.getElementById('modal-order').style.display = 'flex';
+
+  // Forcer la valeur du select APRÈS le peuplement, puis afficher les ingrédients
+  const sel = document.getElementById('o-item');
+  if (sel) sel.value = o.item_id;
   updateOrderIngredientsPreview();
 }
 
@@ -1168,9 +1174,6 @@ function closeOrderModal() {
 document.getElementById('btn-add-order').addEventListener('click', openNewOrderModal);
 document.getElementById('cancel-order').addEventListener('click', closeOrderModal);
 
-// Mise à jour live quand on change le produit ou la quantité
-document.getElementById('o-item')?.addEventListener('change', updateOrderIngredientsPreview);
-document.getElementById('o-quantity')?.addEventListener('input', updateOrderIngredientsPreview);
 
 document.getElementById('confirm-order').addEventListener('click', async () => {
   const id       = document.getElementById('o-id').value;
