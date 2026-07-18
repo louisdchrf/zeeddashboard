@@ -1127,12 +1127,10 @@ function openNewOrderModal() {
     if (el) el.disabled = false;
   });
   document.getElementById('confirm-order').style.display = '';
-  // Cacher la preview d'ingrédients à la création
-  const preview = document.getElementById('order-ingredients-preview');
-  if (preview) preview.style.display = 'none';
   populateOrderItemSelect();
   populateAssigneeCheckboxes();
   document.getElementById('modal-order').style.display = 'flex';
+  updateOrderIngredientsPreview();
 }
 
 function openEditOrderModal(id) {
@@ -1173,6 +1171,10 @@ function closeOrderModal() {
 
 document.getElementById('btn-add-order').addEventListener('click', openNewOrderModal);
 document.getElementById('cancel-order').addEventListener('click', closeOrderModal);
+
+// Preview ingrédients live à la création
+document.getElementById('o-item')?.addEventListener('change', updateOrderIngredientsPreview);
+document.getElementById('o-quantity')?.addEventListener('input', updateOrderIngredientsPreview);
 
 
 document.getElementById('confirm-order').addEventListener('click', async () => {
