@@ -4,6 +4,11 @@ Toutes les modifications notables du projet sont documentées ici.
 
 ---
 
+## v26.0718.1359 — 18/07/2026 à 13:59
+
+Refonte de l'interface inventaire
+
+
 ## v26.0718.1350 — 18/07/2026 à 13:50
 
 Mise à jour 26.0718.1350
