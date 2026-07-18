@@ -1872,7 +1872,8 @@ nav { display: flex; gap: 2px; }
   margin-bottom: 6px;
 }
 .o-line-item {
-  flex: 1;
+  flex: 1 1 0;
+  min-width: 0;
   background: var(--bg2);
   border: 1px solid var(--border);
   color: var(--text);
@@ -1882,7 +1883,8 @@ nav { display: flex; gap: 2px; }
 }
 .o-line-item:focus { outline: none; border-color: var(--accent); }
 .o-line-qty {
-  width: 64px;
+  flex: 0 0 60px;
+  width: 60px;
   background: var(--bg2);
   border: 1px solid var(--border);
   color: var(--text);
