@@ -432,6 +432,7 @@ nav { display: flex; gap: 4px; }
   vertical-align: middle;
 }
 .plant-table tr:hover td { background: var(--bg2); }
+.order-row { cursor: pointer; }
 
 .badge {
   padding: 2px 8px;

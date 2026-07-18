@@ -1026,14 +1026,14 @@ function renderOrders() {
         }[o.status] || '';
 
         const canAct = currentUser?.is_admin || o.created_by === currentUser?.id;
+        const stopProp = `event.stopPropagation();`;
         const actions = o.status === 'done'
-          ? (canAct ? `<button class="btn-delete" onclick="deleteOrder(${o.id})">🗑️</button>` : '')
-          : `${o.status === 'pending' ? `<button class="btn-secondary" style="padding:3px 8px;font-size:.78rem" onclick="progressOrder(${o.id})">🔄</button>` : ''}
-             <button class="btn-harvest" onclick="completeOrder(${o.id})">✅</button>
-             ${canAct ? `<button class="btn-edit" onclick="openEditOrderModal(${o.id})">✏️</button>
-             <button class="btn-delete" onclick="deleteOrder(${o.id})">🗑️</button>` : ''}`;
+          ? (canAct ? `<button class="btn-delete" onclick="${stopProp}deleteOrder(${o.id})">🗑️</button>` : '')
+          : `${o.status === 'pending' ? `<button class="btn-secondary" style="padding:3px 8px;font-size:.78rem" onclick="${stopProp}progressOrder(${o.id})">🔄</button>` : ''}
+             <button class="btn-harvest" onclick="${stopProp}completeOrder(${o.id})">✅</button>
+             ${canAct ? `<button class="btn-delete" onclick="${stopProp}deleteOrder(${o.id})">🗑️</button>` : ''}`;
 
-        return `<tr class="${o.status === 'done' ? 'order-done' : ''}">
+        return `<tr class="${o.status === 'done' ? 'order-done' : ''} order-row" onclick="openEditOrderModal(${o.id})">
           <td>${escapeHtml(o.item_name)}</td>
           <td>${o.quantity}</td>
           <td>${deadline}</td>
@@ -1121,6 +1121,12 @@ function openNewOrderModal() {
   document.getElementById('order-modal-title').textContent = 'Nouvelle commande';
   document.getElementById('o-quantity').value = 1;
   document.getElementById('o-deadline').value = '';
+  // S'assurer que les champs sont activés
+  ['o-item', 'o-quantity', 'o-deadline'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.disabled = false;
+  });
+  document.getElementById('confirm-order').style.display = '';
   populateOrderItemSelect();
   populateAssigneeCheckboxes();
   document.getElementById('modal-order').style.display = 'flex';
@@ -1130,12 +1136,27 @@ function openNewOrderModal() {
 function openEditOrderModal(id) {
   const o = orders.find(x => x.id === id);
   if (!o) return;
+  const canAct = currentUser?.is_admin || o.created_by === currentUser?.id;
+
   document.getElementById('o-id').value = id;
-  document.getElementById('order-modal-title').textContent = 'Modifier la commande';
+  document.getElementById('order-modal-title').textContent = canAct ? 'Modifier la commande' : 'Détails de la commande';
   document.getElementById('o-quantity').value = o.quantity;
   document.getElementById('o-deadline').value = o.deadline ? o.deadline.slice(0, 10) : '';
+
+  // Champs en lecture seule si pas de droits
+  ['o-item', 'o-quantity', 'o-deadline'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.disabled = !canAct;
+  });
+  document.getElementById('confirm-order').style.display = canAct ? '' : 'none';
+
   populateOrderItemSelect(o.item_id);
   populateAssigneeCheckboxes(o.assignees.map(u => u.id));
+  // Désactiver les checkboxes assignés si pas de droits
+  if (!canAct) {
+    document.querySelectorAll('#o-assignees input').forEach(cb => cb.disabled = true);
+  }
+
   document.getElementById('modal-order').style.display = 'flex';
   updateOrderIngredientsPreview();
 }
