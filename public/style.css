@@ -1177,3 +1177,51 @@ nav { display: flex; gap: 4px; }
 .feed-loc { color: var(--text2); font-size: 0.78rem; }
 .feed-player { margin-left: auto; color: var(--text2); }
 .feed-time { color: var(--text2); font-size: 0.75rem; white-space: nowrap; }
+
+/* ── Inventaire — sous-onglets ───────────────────────────────────────────────── */
+
+.inv-subtabs {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+  margin-bottom: 16px;
+}
+
+.inv-subtab {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 14px;
+  border-radius: 20px;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--text2);
+  font-size: 0.85rem;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.inv-subtab:hover {
+  border-color: var(--accent);
+  color: var(--fg);
+}
+
+.inv-subtab.active {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #fff;
+  font-weight: 600;
+}
+
+.inv-subtab-count {
+  background: rgba(255,255,255,0.2);
+  border-radius: 10px;
+  padding: 0 6px;
+  font-size: 0.72rem;
+  font-weight: 700;
+}
+
+.inv-subtab:not(.active) .inv-subtab-count {
+  background: var(--border);
+  color: var(--text2);
+}

@@ -736,21 +736,24 @@ setInterval(async () => {
 
 // ── Inventaire ────────────────────────────────────────────────────────────────
 let inventory = [];
+let invActiveCategory = null; // null = tout afficher
 
 async function loadInventory() {
   inventory = await api.get('/api/inventory') || [];
 }
 
 function renderInventory() {
-  const grid = document.getElementById('inventory-grid');
+  const grid      = document.getElementById('inventory-grid');
+  const subtabsEl = document.getElementById('inv-subtabs');
   if (!grid) return;
 
   if (inventory.length === 0) {
+    if (subtabsEl) subtabsEl.innerHTML = '';
     grid.innerHTML = '<p style="color:var(--text2);padding:24px">Aucun article configuré.</p>';
     return;
   }
 
-  // Grouper par catégorie (ordre d'apparition)
+  // Grouper par catégorie
   const groups = {};
   const groupOrder = [];
   for (const item of inventory) {
@@ -759,25 +762,45 @@ function renderInventory() {
     groups[cat].push(item);
   }
 
-  grid.innerHTML = groupOrder.map(cat => `
-    <div class="inv-group">
-      <h3 class="inv-group-title">${escapeHtml(cat)}</h3>
-      <div class="inv-group-items">
-        ${groups[cat].map(item => `
-          <div class="inv-item" data-id="${item.id}">
-            <div class="inv-item-name">${escapeHtml(item.name)}</div>
-            <div class="inv-item-qty" id="inv-qty-${item.id}">${item.quantity}</div>
-            <div class="inv-item-controls">
-              <button class="inv-btn inv-minus" onclick="adjustInventory(${item.id}, -1)">−</button>
-              <input class="inv-adj" type="number" id="inv-adj-${item.id}" value="1" min="1" max="999"/>
-              <button class="inv-btn inv-plus" onclick="adjustInventory(${item.id}, +1)">+</button>
-            </div>
-            ${item.updated_at ? `<div class="inv-item-meta">màj ${item.updated_by_name ? escapeHtml(item.updated_by_name) + ' · ' : ''}${new Date(item.updated_at + 'Z').toLocaleDateString('fr-FR')}</div>` : ''}
+  // Initialiser catégorie active sur la première si non définie
+  if (!invActiveCategory || !groups[invActiveCategory]) {
+    invActiveCategory = groupOrder[0];
+  }
+
+  // Sous-onglets
+  if (subtabsEl) {
+    subtabsEl.innerHTML = groupOrder.map(cat => `
+      <button class="inv-subtab ${cat === invActiveCategory ? 'active' : ''}" data-cat="${escapeHtml(cat)}">
+        ${escapeHtml(cat)}
+        <span class="inv-subtab-count">${groups[cat].length}</span>
+      </button>
+    `).join('');
+    subtabsEl.querySelectorAll('.inv-subtab').forEach(btn => {
+      btn.addEventListener('click', () => {
+        invActiveCategory = btn.dataset.cat;
+        renderInventory();
+      });
+    });
+  }
+
+  // Items de la catégorie active uniquement
+  const items = groups[invActiveCategory] || [];
+  grid.innerHTML = `
+    <div class="inv-group-items">
+      ${items.map(item => `
+        <div class="inv-item" data-id="${item.id}">
+          <div class="inv-item-name">${escapeHtml(item.name)}</div>
+          <div class="inv-item-qty" id="inv-qty-${item.id}">${item.quantity}</div>
+          <div class="inv-item-controls">
+            <button class="inv-btn inv-minus" onclick="adjustInventory(${item.id}, -1)">−</button>
+            <input class="inv-adj" type="number" id="inv-adj-${item.id}" value="1" min="1" max="999"/>
+            <button class="inv-btn inv-plus" onclick="adjustInventory(${item.id}, +1)">+</button>
           </div>
-        `).join('')}
-      </div>
+          ${item.updated_at ? `<div class="inv-item-meta">màj ${item.updated_by_name ? escapeHtml(item.updated_by_name) + ' · ' : ''}${new Date(item.updated_at + 'Z').toLocaleDateString('fr-FR')}</div>` : ''}
+        </div>
+      `).join('')}
     </div>
-  `).join('');
+  `;
 }
 
 async function adjustInventory(itemId, direction) {
