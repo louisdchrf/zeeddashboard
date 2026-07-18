@@ -757,16 +757,29 @@ app.get('/api/recipes', (_, res) => {
 // ── Inventaire ────────────────────────────────────────────────────────────────
 
 app.get('/api/inventory', (_, res) => {
-  res.json(db.prepare(`
-    SELECT oi.id, oi.name, oi.category,
-           COALESCE(inv.quantity, 0) AS quantity,
-           inv.updated_at,
-           u.username AS updated_by_name
+  const items = db.prepare(`
+    SELECT oi.id, oi.name, oi.category, oi.location,
+           COALESCE(SUM(s.quantity), 0) AS total_quantity
     FROM order_items oi
-    LEFT JOIN inventory inv ON inv.item_id = oi.id
-    LEFT JOIN users u ON inv.updated_by = u.id
-    ORDER BY oi.id
-  `).all());
+    LEFT JOIN inventory_stock s ON s.item_id = oi.id
+    GROUP BY oi.id
+    ORDER BY oi.category, oi.name
+  `).all();
+
+  const stocks = db.prepare(`
+    SELECT s.item_id, s.user_id, s.quantity, s.updated_at, u.username
+    FROM inventory_stock s
+    JOIN users u ON s.user_id = u.id
+    ORDER BY u.username
+  `).all();
+
+  const stockMap = {};
+  for (const s of stocks) {
+    if (!stockMap[s.item_id]) stockMap[s.item_id] = [];
+    stockMap[s.item_id].push(s);
+  }
+
+  res.json(items.map(item => ({ ...item, stocks: stockMap[item.id] || [] })));
 });
 
 app.put('/api/inventory/:itemId', (req, res) => {
@@ -774,20 +787,24 @@ app.put('/api/inventory/:itemId', (req, res) => {
   if (typeof delta !== 'number') return res.status(400).json({ error: 'delta requis' });
   const item = db.prepare('SELECT id FROM order_items WHERE id=?').get(req.params.itemId);
   if (!item) return res.status(404).json({ error: 'Article introuvable' });
-  const current = db.prepare('SELECT quantity FROM inventory WHERE item_id=?').get(req.params.itemId);
+
+  const current = db.prepare('SELECT quantity FROM inventory_stock WHERE item_id=? AND user_id=?')
+    .get(req.params.itemId, req.session.userId);
   const newQty = Math.max(0, (current?.quantity || 0) + delta);
+
   db.prepare(`
-    INSERT INTO inventory (item_id, quantity, updated_by, updated_at)
+    INSERT INTO inventory_stock (item_id, user_id, quantity, updated_at)
     VALUES (?, ?, ?, datetime('now'))
-    ON CONFLICT(item_id) DO UPDATE SET
+    ON CONFLICT(item_id, user_id) DO UPDATE SET
       quantity   = excluded.quantity,
-      updated_by = excluded.updated_by,
       updated_at = excluded.updated_at
-  `).run(req.params.itemId, newQty, req.session.userId);
+  `).run(req.params.itemId, req.session.userId, newQty);
+
   db.prepare(`
     INSERT INTO stock_movements (item_id, user_id, delta, qty_after, created_at)
     VALUES (?, ?, ?, ?, datetime('now'))
   `).run(req.params.itemId, req.session.userId, delta, newQty);
+
   broadcast('inventory:changed', {});
   res.json({ quantity: newQty });
 });

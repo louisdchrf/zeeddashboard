@@ -789,21 +789,29 @@ function renderInventory() {
 
   function renderItem(item) {
     const isFav = favs.has(item.id);
+    const myStock = (item.stocks || []).find(s => s.user_id === currentUser?.id);
+    const myQty   = myStock?.quantity || 0;
+    const visibleStocks = (item.stocks || []).filter(s => s.quantity > 0);
+
+    const breakdown = visibleStocks.map(s =>
+      `<span class="inv-user-stock${s.user_id === currentUser?.id ? ' inv-user-own' : ''}">${escapeHtml(s.username)}&thinsp;<b>${s.quantity}</b></span>`
+    ).join('');
+
     return `
       <div class="inv-item${isFav ? ' inv-item-fav' : ''}" data-id="${item.id}">
         <div class="inv-item-header">
           <div class="inv-item-name">${escapeHtml(item.name)}</div>
           <button class="inv-fav-btn${isFav ? ' active' : ''}" onclick="toggleFavorite(${item.id})" title="${isFav ? 'Retirer des favoris' : 'Ajouter aux favoris'}">★</button>
         </div>
-        <div class="inv-item-qty ${item.quantity > 0 ? 'qty-positive' : 'qty-zero'}" id="inv-qty-${item.id}">${item.quantity}</div>
+        <div class="inv-item-qty ${item.total_quantity > 0 ? 'qty-positive' : 'qty-zero'}" id="inv-total-${item.id}">${item.total_quantity}</div>
+        <div class="inv-breakdown" id="inv-breakdown-${item.id}">${breakdown}</div>
+        ${item.location ? `<div class="inv-item-location">📍 ${escapeHtml(item.location)}</div>` : ''}
         <div class="inv-item-controls">
           <button class="inv-btn inv-minus" onclick="adjustInventory(${item.id}, -1)">−</button>
           <input class="inv-adj" type="number" id="inv-adj-${item.id}" value="1" min="1" max="999"/>
           <button class="inv-btn inv-plus" onclick="adjustInventory(${item.id}, +1)">+</button>
         </div>
-        ${item.updated_at ? `<div class="inv-item-meta">màj ${item.updated_by_name ? escapeHtml(item.updated_by_name) + ' · ' : ''}${new Date(item.updated_at + 'Z').toLocaleDateString('fr-FR')}</div>` : ''}
-        ${item.location ? `<div class="inv-item-location">📍 ${escapeHtml(item.location)}</div>` : ''}
-        <button class="inv-history-btn" onclick="openMovementsModal(${item.id}, '${escapeHtml(item.name).replace(/'/g, "\\'")}')" title="Historique">📜</button>
+        <div class="inv-item-meta">mon stock : <span id="inv-my-qty-${item.id}">${myQty}</span></div>
       </div>
     `;
   }
@@ -835,13 +843,33 @@ async function adjustInventory(itemId, direction) {
   const delta = direction * adj;
   const r = await api.put(`/api/inventory/${itemId}`, { delta });
   if (r?.error) return alert(r.error);
+
   // Mise à jour locale immédiate
   const item = inventory.find(i => i.id === itemId);
-  if (item) item.quantity = r.quantity;
-  const el = document.getElementById(`inv-qty-${itemId}`);
-  if (el) {
-    el.textContent = r.quantity;
-    el.className = `inv-item-qty ${r.quantity > 0 ? 'qty-positive' : 'qty-zero'}`;
+  if (item) {
+    if (!item.stocks) item.stocks = [];
+    const myStock = item.stocks.find(s => s.user_id === currentUser?.id);
+    if (myStock) {
+      myStock.quantity = r.quantity;
+    } else if (r.quantity > 0) {
+      item.stocks.push({ user_id: currentUser.id, username: currentUser.username, quantity: r.quantity });
+    }
+    item.total_quantity = item.stocks.reduce((sum, s) => sum + s.quantity, 0);
+
+    const totalEl = document.getElementById(`inv-total-${itemId}`);
+    if (totalEl) {
+      totalEl.textContent = item.total_quantity;
+      totalEl.className = `inv-item-qty ${item.total_quantity > 0 ? 'qty-positive' : 'qty-zero'}`;
+    }
+    const myQtyEl = document.getElementById(`inv-my-qty-${itemId}`);
+    if (myQtyEl) myQtyEl.textContent = r.quantity;
+    const breakdownEl = document.getElementById(`inv-breakdown-${itemId}`);
+    if (breakdownEl) {
+      const visibleStocks = item.stocks.filter(s => s.quantity > 0);
+      breakdownEl.innerHTML = visibleStocks.map(s =>
+        `<span class="inv-user-stock${s.user_id === currentUser?.id ? ' inv-user-own' : ''}">${escapeHtml(s.username)}&thinsp;<b>${s.quantity}</b></span>`
+      ).join('');
+    }
   }
 }
 
