@@ -1004,9 +1004,8 @@ function renderOrders() {
   const tbody = document.getElementById('orders-body');
   if (!tbody) return;
 
-  const pending = orders.filter(o => o.status === 'pending');
-  const done    = orders.filter(o => o.status === 'done');
-  const sorted  = [...pending, ...done];
+  const statusOrder = { pending: 0, in_progress: 1, to_deliver: 2, done: 3 };
+  const sorted = [...orders].sort((a, b) => (statusOrder[a.status] ?? 9) - (statusOrder[b.status] ?? 9));
 
   tbody.innerHTML = sorted.length === 0
     ? '<tr><td colspan="7" style="text-align:center;color:var(--text2);padding:24px">Aucune commande</td></tr>'
@@ -1019,12 +1018,15 @@ function renderOrders() {
           `<span class="assignee-tag">${escapeHtml(u.username)}</span>`
         ).join('');
 
-        const statusBadge = {
-          done:        '<span class="order-badge badge-done">✅ Terminée</span>',
-          in_progress: '<span class="order-badge badge-progress">🔄 En cours</span>',
-          to_deliver:  '<span class="order-badge badge-deliver">📦 À livrer</span>',
-          pending:     '<span class="order-badge badge-pending">⏳ En attente</span>',
-        }[o.status] || '';
+        const statusSelect = `
+          <select class="status-inline status-${o.status}"
+            onclick="event.stopPropagation()"
+            onchange="quickChangeStatus(${o.id}, this.value, this)">
+            <option value="pending"     ${o.status==='pending'     ? 'selected':''}>⏳ En attente</option>
+            <option value="in_progress" ${o.status==='in_progress' ? 'selected':''}>🔄 En cours</option>
+            <option value="to_deliver"  ${o.status==='to_deliver'  ? 'selected':''}>📦 À livrer</option>
+            <option value="done"        ${o.status==='done'        ? 'selected':''}>✅ Terminée</option>
+          </select>`;
 
         const canAct = currentUser?.is_admin || o.created_by === currentUser?.id;
         const stopProp = `event.stopPropagation();`;
@@ -1038,10 +1040,25 @@ function renderOrders() {
           <td>${deadline}</td>
           <td>${assignees || '—'}</td>
           <td>${escapeHtml(o.created_by_name || '—')}</td>
-          <td>${statusBadge}</td>
+          <td>${statusSelect}</td>
           <td class="actions-cell">${actions}</td>
         </tr>`;
       }).join('');
+}
+
+async function quickChangeStatus(orderId, newStatus, selectEl) {
+  const o = orders.find(x => x.id === orderId);
+  if (!o) return;
+  const body = {
+    item_id: o.item_id, quantity: o.quantity, deadline: o.deadline,
+    user_ids: o.assignees.map(u => u.id), status: newStatus,
+  };
+  selectEl.disabled = true;
+  const r = await api.put(`/api/orders/${orderId}`, body);
+  selectEl.disabled = false;
+  if (r?.error) { alert(r.error); selectEl.value = o.status; return; }
+  await loadOrders();
+  renderOrders();
 }
 
 function renderOrderItemsList() {

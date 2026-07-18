@@ -434,6 +434,22 @@ nav { display: flex; gap: 4px; }
 .plant-table tr:hover td { background: var(--bg2); }
 .order-row { cursor: pointer; }
 
+.status-inline {
+  background: var(--bg3);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 4px 8px;
+  font-size: 0.78rem;
+  font-weight: 600;
+  cursor: pointer;
+  outline: none;
+  color: var(--text);
+}
+.status-inline.status-pending     { border-color: rgba(116,128,160,.4); color: var(--text2); }
+.status-inline.status-in_progress { border-color: rgba(88,166,255,.5);  color: var(--blue); }
+.status-inline.status-to_deliver  { border-color: rgba(188,140,255,.5); color: var(--purple); }
+.status-inline.status-done        { border-color: rgba(58,185,107,.5);  color: var(--green); }
+
 .badge {
   padding: 2px 8px;
   border-radius: 20px;
