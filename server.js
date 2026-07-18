@@ -1213,6 +1213,4 @@ app.get('/api/contracts/stats', (_, res) => {
   res.json(rows);
 });
 
-} // fin if(false) bloc contrats supprimés
-
 server.listen(3000, () => console.log('GTA Dashboard → http://localhost:3000'));
