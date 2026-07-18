@@ -807,12 +807,6 @@ function renderInventory() {
         <div class="inv-item-qty ${item.total_quantity > 0 ? 'qty-positive' : 'qty-zero'}" id="inv-total-${item.id}">${item.total_quantity}</div>
         <div class="inv-breakdown" id="inv-breakdown-${item.id}">${breakdown}</div>
         ${item.location ? `<div class="inv-item-location">📍 ${escapeHtml(item.location)}</div>` : ''}
-        <div class="inv-item-controls" onclick="${stopProp}">
-          <button class="inv-btn inv-minus" onclick="adjustInventory(${item.id}, -1)">−</button>
-          <input class="inv-adj" type="number" id="inv-adj-${item.id}" value="1" min="1" max="999"/>
-          <button class="inv-btn inv-plus" onclick="adjustInventory(${item.id}, +1)">+</button>
-        </div>
-        <div class="inv-item-meta">mon stock : <span id="inv-my-qty-${item.id}">${myQty}</span></div>
       </div>
     `;
   }
@@ -1421,7 +1415,8 @@ function openStocksModal(itemId) {
   for (const s of (item.stocks || [])) stockMap[s.user_id] = s.quantity;
 
   const rows = document.getElementById('inv-stocks-rows');
-  rows.innerHTML = allUsers.map(u => `
+  const members = allUsers.filter(u => !u.is_admin);
+  rows.innerHTML = members.map(u => `
     <div class="inv-stocks-row">
       <label class="inv-stocks-label">
         ${u.avatar ? `<img src="https://cdn.discordapp.com/avatars/${u.discord_id}/${u.avatar}.png" class="inv-stocks-avatar"/>` : '<span class="inv-stocks-avatar-placeholder"></span>'}

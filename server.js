@@ -811,7 +811,7 @@ app.put('/api/inventory/:itemId', (req, res) => {
 
 // ── Users list (pour assignation des commandes) ───────────────────────────────
 app.get('/api/users', (_, res) => {
-  res.json(db.prepare('SELECT id, username, avatar, discord_id, discord_notify FROM users ORDER BY username').all());
+  res.json(db.prepare('SELECT id, username, avatar, discord_id, discord_notify, is_admin FROM users ORDER BY username').all());
 });
 
 app.patch('/api/users/me/notify', (req, res) => {
