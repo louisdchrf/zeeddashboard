@@ -429,10 +429,10 @@
     <thead>
       <tr>
         <th>Article</th>
-        <th>Quantité</th>
+        <th>Qté</th>
+        <th>Client</th>
         <th>Deadline</th>
         <th>Assigné à</th>
-        <th>Créé par</th>
         <th>Statut</th>
         <th>Actions</th>
       </tr>
@@ -466,6 +466,10 @@
     <div class="form-group">
       <label>Deadline (optionnel)</label>
       <input type="date" id="o-deadline"/>
+    </div>
+    <div class="form-group">
+      <label>Client / Contrat</label>
+      <input type="text" id="o-client" placeholder="Nom du client ou référence contrat"/>
     </div>
     <div class="form-group" id="o-status-group" style="display:none">
       <label>Statut</label>

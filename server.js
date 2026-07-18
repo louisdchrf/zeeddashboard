@@ -807,7 +807,9 @@ app.delete('/api/order-items/:id', requireAdmin, (req, res) => {
 // ── Orders ────────────────────────────────────────────────────────────────────
 app.get('/api/orders', (_, res) => {
   const orders = db.prepare(`
-    SELECT o.*, oi.name AS item_name, u.username AS created_by_name
+    SELECT o.*, oi.name AS item_name,
+           u.username AS created_by_name,
+           COALESCE(u.is_admin, 0) AS created_by_is_admin
     FROM orders o
     JOIN order_items oi ON o.item_id = oi.id
     LEFT JOIN users u ON o.created_by = u.id
@@ -824,7 +826,7 @@ app.get('/api/orders', (_, res) => {
 });
 
 app.post('/api/orders', async (req, res) => {
-  const { item_id, quantity = 1, deadline, user_ids = [] } = req.body;
+  const { item_id, quantity = 1, deadline, user_ids = [], client } = req.body;
   if (!item_id) return res.status(400).json({ error: 'Article requis' });
   if (!Array.isArray(user_ids) || user_ids.length === 0)
     return res.status(400).json({ error: 'Assigne la commande à au moins une personne' });
@@ -832,8 +834,8 @@ app.post('/api/orders', async (req, res) => {
   const item = db.prepare('SELECT * FROM order_items WHERE id=?').get(item_id);
   if (!item) return res.status(400).json({ error: 'Article introuvable' });
 
-  const r = db.prepare('INSERT INTO orders (item_id, quantity, deadline, created_by) VALUES (?, ?, ?, ?)')
-    .run(item_id, quantity, deadline || null, req.session.userId);
+  const r = db.prepare('INSERT INTO orders (item_id, quantity, deadline, created_by, client) VALUES (?, ?, ?, ?, ?)')
+    .run(item_id, quantity, deadline || null, req.session.userId, client || null);
   const orderId = r.lastInsertRowid;
 
   const insAssign = db.prepare('INSERT OR IGNORE INTO order_assignments (order_id, user_id) VALUES (?, ?)');
@@ -878,14 +880,16 @@ app.put('/api/orders/:id', (req, res) => {
   const order = db.prepare('SELECT * FROM orders WHERE id=?').get(req.params.id);
   if (!order) return res.status(404).json({ error: 'Introuvable' });
   const user = db.prepare('SELECT is_admin FROM users WHERE id=?').get(req.session.userId);
-  if (!user?.is_admin && order.created_by !== req.session.userId)
-    return res.status(403).json({ error: 'Non autorisé' });
+  // Commandes admin : réservées aux admins. Commandes user : tout le monde peut modifier.
+  const creator = order.created_by ? db.prepare('SELECT is_admin FROM users WHERE id=?').get(order.created_by) : null;
+  if (creator?.is_admin && !user?.is_admin)
+    return res.status(403).json({ error: 'Seul un admin peut modifier cette commande' });
 
-  const { item_id, quantity, deadline, user_ids, status } = req.body;
+  const { item_id, quantity, deadline, user_ids, status, client } = req.body;
   const validStatuses = ['pending', 'in_progress', 'to_deliver', 'done'];
   const newStatus = validStatuses.includes(status) ? status : order.status;
-  db.prepare('UPDATE orders SET item_id=?, quantity=?, deadline=?, status=? WHERE id=?')
-    .run(item_id, quantity, deadline || null, newStatus, req.params.id);
+  db.prepare('UPDATE orders SET item_id=?, quantity=?, deadline=?, status=?, client=? WHERE id=?')
+    .run(item_id, quantity, deadline || null, newStatus, client || null, req.params.id);
 
   if (Array.isArray(user_ids)) {
     db.prepare('DELETE FROM order_assignments WHERE order_id=?').run(req.params.id);
@@ -898,6 +902,28 @@ app.put('/api/orders/:id', (req, res) => {
   const token     = getSetting('discord_bot_token');
   const channelId = getSetting('discord_notify_channel_id');
   if (token && channelId && newStatus !== order.status) {
+    patchOrderMessage(req.params.id, token, channelId).catch(() => {});
+  }
+
+  res.json({ success: true });
+});
+
+// Changement de statut — accessible à tous les membres authentifiés
+app.patch('/api/orders/:id/status', async (req, res) => {
+  const { status } = req.body;
+  const validStatuses = ['pending', 'in_progress', 'to_deliver', 'done'];
+  if (!validStatuses.includes(status)) return res.status(400).json({ error: 'Statut invalide' });
+
+  const order = db.prepare('SELECT * FROM orders WHERE id=?').get(req.params.id);
+  if (!order) return res.status(404).json({ error: 'Introuvable' });
+
+  db.prepare('UPDATE orders SET status=? WHERE id=?').run(status, req.params.id);
+  broadcast('orders:changed', {});
+
+  // Patch message Discord
+  const token     = getSetting('discord_bot_token');
+  const channelId = getSetting('discord_notify_channel_id');
+  if (token && channelId && order.discord_message_id) {
     patchOrderMessage(req.params.id, token, channelId).catch(() => {});
   }
 
@@ -927,8 +953,9 @@ app.delete('/api/orders/:id', (req, res) => {
   const order = db.prepare('SELECT * FROM orders WHERE id=?').get(req.params.id);
   if (!order) return res.status(404).json({ error: 'Introuvable' });
   const user = db.prepare('SELECT is_admin FROM users WHERE id=?').get(req.session.userId);
-  if (!user?.is_admin && order.created_by !== req.session.userId)
-    return res.status(403).json({ error: 'Non autorisé' });
+  const creator = order.created_by ? db.prepare('SELECT is_admin FROM users WHERE id=?').get(order.created_by) : null;
+  if (creator?.is_admin && !user?.is_admin)
+    return res.status(403).json({ error: 'Seul un admin peut supprimer cette commande' });
   db.prepare('DELETE FROM orders WHERE id=?').run(req.params.id);
   broadcast('orders:changed', {});
   res.json({ success: true });

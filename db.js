@@ -106,6 +106,7 @@ try { db.exec(`ALTER TABLE points ADD COLUMN on_map INTEGER DEFAULT 1`); } catch
 try { db.exec(`ALTER TABLE order_items ADD COLUMN category TEXT DEFAULT NULL`); } catch (_) {}
 try { db.exec(`ALTER TABLE order_items ADD COLUMN orderable INTEGER DEFAULT 1`); } catch (_) {}
 try { db.exec(`ALTER TABLE orders ADD COLUMN discord_message_id TEXT`); } catch (_) {}
+try { db.exec(`ALTER TABLE orders ADD COLUMN client TEXT DEFAULT NULL`); } catch (_) {}
 
 // Valeur par défaut = même que l'extérieur pour les marchandises existantes
 db.exec(`UPDATE merchandise SET grow_time_interior = grow_time_minutes WHERE grow_time_interior IS NULL`);

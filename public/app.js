@@ -133,6 +133,11 @@ const api = {
     if (r.status === 401) { window.location.reload(); return null; }
     return r.json();
   },
+  patch: async (url, body) => {
+    const r = await fetch(url, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+    if (r.status === 401) { window.location.reload(); return null; }
+    return r.json();
+  },
   delete: async (url) => {
     const r = await fetch(url, { method: 'DELETE' });
     if (r.status === 401) { window.location.reload(); return null; }
@@ -1008,7 +1013,7 @@ function renderOrders() {
   const sorted = [...orders].sort((a, b) => (statusOrder[a.status] ?? 9) - (statusOrder[b.status] ?? 9));
 
   tbody.innerHTML = sorted.length === 0
-    ? '<tr><td colspan="7" style="text-align:center;color:var(--text2);padding:24px">Aucune commande</td></tr>'
+    ? '<tr><td colspan="8" style="text-align:center;color:var(--text2);padding:24px">Aucune commande</td></tr>'
     : sorted.map(o => {
         const deadline = o.deadline
           ? new Date(o.deadline).toLocaleDateString('fr-FR')
@@ -1028,18 +1033,19 @@ function renderOrders() {
             <option value="done"        ${o.status==='done'        ? 'selected':''}>✅ Terminée</option>
           </select>`;
 
-        const canAct = currentUser?.is_admin || o.created_by === currentUser?.id;
+        // Commandes admin : seul admin peut supprimer. Commandes user : tout le monde peut.
+        const canDelete = currentUser?.is_admin || !o.created_by_is_admin;
         const stopProp = `event.stopPropagation();`;
-        const actions = canAct
+        const actions = canDelete
           ? `<button class="btn-icon danger" onclick="${stopProp}deleteOrder(${o.id})">🗑️</button>`
           : '';
 
         return `<tr class="${o.status === 'done' ? 'order-done' : ''} order-row" onclick="openEditOrderModal(${o.id})">
           <td>${escapeHtml(o.item_name)}</td>
           <td>${o.quantity}</td>
+          <td>${o.client ? `<span class="client-tag">${escapeHtml(o.client)}</span>` : '<span style="color:var(--text2)">—</span>'}</td>
           <td>${deadline}</td>
           <td>${assignees || '—'}</td>
-          <td>${escapeHtml(o.created_by_name || '—')}</td>
           <td>${statusSelect}</td>
           <td class="actions-cell">${actions}</td>
         </tr>`;
@@ -1047,16 +1053,15 @@ function renderOrders() {
 }
 
 async function quickChangeStatus(orderId, newStatus, selectEl) {
-  const o = orders.find(x => x.id === orderId);
-  if (!o) return;
-  const body = {
-    item_id: o.item_id, quantity: o.quantity, deadline: o.deadline,
-    user_ids: o.assignees.map(u => u.id), status: newStatus,
-  };
   selectEl.disabled = true;
-  const r = await api.put(`/api/orders/${orderId}`, body);
+  const r = await api.patch(`/api/orders/${orderId}/status`, { status: newStatus });
   selectEl.disabled = false;
-  if (r?.error) { alert(r.error); selectEl.value = o.status; return; }
+  if (r?.error) {
+    alert(r.error);
+    const o = orders.find(x => x.id === orderId);
+    if (o) selectEl.value = o.status;
+    return;
+  }
   await loadOrders();
   renderOrders();
 }
@@ -1144,6 +1149,7 @@ function openNewOrderModal() {
   });
   document.getElementById('confirm-order').style.display = '';
   document.getElementById('o-status-group').style.display = 'none';
+  document.getElementById('o-client').value = '';
   populateOrderItemSelect();
   populateAssigneeCheckboxes();
   document.getElementById('modal-order').style.display = 'flex';
@@ -1153,12 +1159,14 @@ function openNewOrderModal() {
 function openEditOrderModal(id) {
   const o = orders.find(x => x.id === id);
   if (!o) return;
-  const canAct = currentUser?.is_admin || o.created_by === currentUser?.id;
+  // Commandes admin → seul admin peut modifier. Commandes user → tout le monde peut modifier.
+  const canAct = currentUser?.is_admin || !o.created_by_is_admin;
 
   document.getElementById('o-id').value = id;
   document.getElementById('order-modal-title').textContent = canAct ? 'Modifier la commande' : 'Détails de la commande';
   document.getElementById('o-quantity').value = o.quantity;
   document.getElementById('o-deadline').value = o.deadline ? o.deadline.slice(0, 10) : '';
+  document.getElementById('o-client').value = o.client || '';
 
   // Champs en lecture seule si pas de droits
   ['o-item', 'o-quantity', 'o-deadline', 'o-status'].forEach(fieldId => {
@@ -1209,7 +1217,8 @@ document.getElementById('confirm-order').addEventListener('click', async () => {
   if (user_ids.length === 0) return alert('Assigne la commande à au moins une personne.');
 
   const status = document.getElementById('o-status')?.value || 'pending';
-  const body = { item_id: parseInt(item_id), quantity, deadline, user_ids, status };
+  const client = document.getElementById('o-client')?.value?.trim() || null;
+  const body = { item_id: parseInt(item_id), quantity, deadline, user_ids, status, client };
   const r = id
     ? await api.put(`/api/orders/${id}`, body)
     : await api.post('/api/orders', body);

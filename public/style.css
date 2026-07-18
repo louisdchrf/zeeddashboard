@@ -867,6 +867,17 @@ nav { display: flex; gap: 4px; }
   white-space: nowrap;
 }
 
+.client-tag {
+  display: inline-block;
+  background: rgba(124, 106, 246, .12);
+  color: var(--accent);
+  border: 1px solid rgba(124, 106, 246, .25);
+  border-radius: 4px;
+  padding: 1px 7px;
+  font-size: 0.78rem;
+  white-space: nowrap;
+}
+
 .assignee-list {
   display: flex;
   flex-direction: column;
