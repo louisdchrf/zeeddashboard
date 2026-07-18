@@ -739,7 +739,7 @@ app.get('/api/users', (_, res) => {
 
 // ── Order items ───────────────────────────────────────────────────────────────
 app.get('/api/order-items', (_, res) => {
-  res.json(db.prepare('SELECT * FROM order_items ORDER BY name').all());
+  res.json(db.prepare('SELECT * FROM order_items WHERE orderable = 1 OR orderable IS NULL ORDER BY name').all());
 });
 
 app.post('/api/order-items', requireAdmin, (req, res) => {

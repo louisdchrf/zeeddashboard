@@ -104,6 +104,7 @@ try { db.exec(`ALTER TABLE points ADD COLUMN location_name TEXT DEFAULT ''`); } 
 try { db.exec(`ALTER TABLE points ADD COLUMN visibility TEXT DEFAULT 'shared'`); } catch (_) {}
 try { db.exec(`ALTER TABLE points ADD COLUMN on_map INTEGER DEFAULT 1`); } catch (_) {}
 try { db.exec(`ALTER TABLE order_items ADD COLUMN category TEXT DEFAULT NULL`); } catch (_) {}
+try { db.exec(`ALTER TABLE order_items ADD COLUMN orderable INTEGER DEFAULT 1`); } catch (_) {}
 
 // Valeur par défaut = même que l'extérieur pour les marchandises existantes
 db.exec(`UPDATE merchandise SET grow_time_interior = grow_time_minutes WHERE grow_time_interior IS NULL`);
@@ -152,6 +153,20 @@ db.transaction(() => {
     ['Krakenine traitée',          'Matières premières'],
     ['Virus Z',                    'Matières premières'],
   ].forEach(([n, c]) => upsertItem.run(n, c));
+})();
+
+// Consommables — non commandables (orderable = 0)
+const upsertConsumable = db.prepare(`
+  INSERT INTO order_items (name, category, orderable) VALUES (?, 'Consommables', 0)
+  ON CONFLICT(name) DO UPDATE SET category = 'Consommables', orderable = 0
+`);
+db.transaction(() => {
+  [
+    'Bidon de chauffe',
+    'Sac de fructification',
+    'Pot de terre',
+    'Marmite de fermentation',
+  ].forEach(n => upsertConsumable.run(n));
 })();
 
 // Recettes — upsert idempotent par (product_id, ingredient_id)
