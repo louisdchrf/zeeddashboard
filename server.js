@@ -545,7 +545,7 @@ function buildOrderEmbed(orderId, itemName, quantity, status, assigneeNames, dea
     { name: 'Deadline',  value: deadlineStr,       inline: true },
     { name: 'Assigné à', value: assigneeNames,     inline: false },
   ];
-  if (client) fields.push({ name: 'Client',   value: client,      inline: true });
+  if (client) fields.push({ name: 'Contrat',  value: client,      inline: true });
   fields.push(  { name: 'Statut',   value: statusLabel,  inline: true });
 
   const embeds = [{ title, color, fields }];
