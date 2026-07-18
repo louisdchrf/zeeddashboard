@@ -65,6 +65,7 @@
     <button class="tab-btn" data-tab="list">Plants actifs</button>
     <button class="tab-btn" data-tab="merchandise">Marchandises</button>
     <button class="tab-btn" data-tab="recipes">Recettes</button>
+    <button class="tab-btn" data-tab="contracts">Contrats</button>
     <button class="tab-btn" data-tab="stats">Stats</button>
     <button class="tab-btn tab-admin" data-tab="settings" style="display:none">Paramètres</button>
   </nav>
@@ -73,6 +74,7 @@
     <span id="app-version" class="app-version"></span>
     <img id="user-avatar" class="user-avatar" src="" alt=""/>
     <span id="user-name"></span>
+    <button id="btn-discord-notify" class="btn-notify-toggle" title="Notifications Discord">🔔</button>
     <button id="btn-logout" class="btn-logout">Déco</button>
   </div>
 </div>
@@ -142,6 +144,15 @@
   <div id="recipes-grid" class="recipes-grid"></div>
 </div>
 
+<!-- ── TAB: Contrats ── -->
+<div id="tab-contracts" class="tab-content">
+  <div class="section-header">
+    <h2>Contrats</h2>
+    <button class="btn-primary" id="btn-add-contract">+ Nouveau contrat</button>
+  </div>
+  <div id="contracts-list"></div>
+</div>
+
 <!-- ── TAB: Stats ── -->
 <div id="tab-stats" class="tab-content">
   <div class="section-header"><h2>Stats de production</h2></div>
@@ -155,6 +166,10 @@
       <div class="stats-card">
         <h3>Leaderboard</h3>
         <div id="stats-by-player"></div>
+      </div>
+      <div class="stats-card stats-card-wide">
+        <h3>Ventes par produit (contrats)</h3>
+        <div id="stats-by-product"></div>
       </div>
       <div class="stats-card stats-card-wide">
         <h3>Activité — 7 derniers jours</h3>
@@ -532,15 +547,76 @@
 <!-- ── Modal: Renommer un article ── -->
 <div class="modal-overlay" id="modal-order-item-edit">
   <div class="modal-box" style="max-width:380px">
-    <h2>Renommer l'article</h2>
+    <h2>Modifier l'article</h2>
     <input type="hidden" id="oi-edit-id"/>
     <div class="form-group">
-      <label>Nouveau nom</label>
+      <label>Nom</label>
       <input type="text" id="oi-edit-name"/>
+    </div>
+    <div class="form-group">
+      <label>Lieu de stockage</label>
+      <input type="text" id="oi-edit-location" placeholder="ex: Coffre garage, Sac bleu…"/>
     </div>
     <div class="modal-footer">
       <button class="btn-cancel" id="cancel-order-item-edit">Annuler</button>
       <button class="btn-confirm" id="confirm-order-item-edit">Enregistrer</button>
+    </div>
+  </div>
+</div>
+
+<!-- ── Modal: Mouvements de stock ── -->
+<div class="modal-overlay" id="modal-movements">
+  <div class="modal-box" style="max-width:480px">
+    <h2 id="movements-title">Historique</h2>
+    <div id="movements-list" class="movements-list"></div>
+    <div class="modal-footer" style="margin-top:16px">
+      <button class="btn-cancel" id="close-movements">Fermer</button>
+    </div>
+  </div>
+</div>
+
+<!-- ── Modal: Contrat ── -->
+<div class="modal-overlay" id="modal-contract">
+  <div class="modal-box" style="max-width:480px">
+    <h2 id="contract-modal-title">Nouveau contrat</h2>
+    <input type="hidden" id="c-id"/>
+    <div class="form-group">
+      <label>Nom du contrat</label>
+      <input type="text" id="c-name" placeholder="ex: Contrat Ballas #12"/>
+    </div>
+    <div class="form-group">
+      <label>Client</label>
+      <input type="text" id="c-client" placeholder="ex: Ballas, Vagos…"/>
+    </div>
+    <div class="form-group">
+      <label>Deadline</label>
+      <input type="date" id="c-deadline"/>
+    </div>
+    <div class="form-group">
+      <label>Notes</label>
+      <textarea id="c-notes" rows="2" style="resize:vertical" placeholder="Informations supplémentaires…"></textarea>
+    </div>
+    <div class="modal-footer">
+      <button class="btn-cancel" id="cancel-contract">Annuler</button>
+      <button class="btn-confirm" id="confirm-contract">Enregistrer</button>
+    </div>
+  </div>
+</div>
+
+<!-- ── Modal: Détail contrat (lignes) ── -->
+<div class="modal-overlay" id="modal-contract-detail">
+  <div class="modal-box" style="max-width:620px">
+    <h2 id="contract-detail-title">Détail du contrat</h2>
+    <div id="contract-detail-meta" class="contract-detail-meta"></div>
+    <div id="contract-lines-list" class="contract-lines-list"></div>
+    <div class="contract-line-add">
+      <input type="text" id="cl-product" placeholder="Produit…" style="flex:2"/>
+      <input type="number" id="cl-qty" placeholder="Qté" min="0" style="width:70px"/>
+      <input type="number" id="cl-price" placeholder="Prix/u" min="0" style="width:80px"/>
+      <button class="btn-primary" id="btn-add-contract-line">+</button>
+    </div>
+    <div class="modal-footer" style="margin-top:16px">
+      <button class="btn-cancel" id="close-contract-detail">Fermer</button>
     </div>
   </div>
 </div>
@@ -570,6 +646,10 @@
   <button class="bnav-btn" data-tab="recipes">
     <span class="bnav-icon">⚗️</span>
     <span class="bnav-label">Recettes</span>
+  </button>
+  <button class="bnav-btn" data-tab="contracts">
+    <span class="bnav-icon">📋</span>
+    <span class="bnav-label">Contrats</span>
   </button>
   <button class="bnav-btn" data-tab="stats">
     <span class="bnav-icon">📊</span>

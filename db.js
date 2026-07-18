@@ -107,6 +107,42 @@ try { db.exec(`ALTER TABLE order_items ADD COLUMN category TEXT DEFAULT NULL`); 
 try { db.exec(`ALTER TABLE order_items ADD COLUMN orderable INTEGER DEFAULT 1`); } catch (_) {}
 try { db.exec(`ALTER TABLE orders ADD COLUMN discord_message_id TEXT`); } catch (_) {}
 try { db.exec(`ALTER TABLE orders ADD COLUMN client TEXT DEFAULT NULL`); } catch (_) {}
+try { db.exec(`ALTER TABLE order_items ADD COLUMN location TEXT DEFAULT NULL`); } catch (_) {}
+try { db.exec(`ALTER TABLE users ADD COLUMN discord_notify INTEGER DEFAULT 1`); } catch (_) {}
+
+// Nouvelles tables
+db.exec(`
+  CREATE TABLE IF NOT EXISTS stock_movements (
+    id         INTEGER PRIMARY KEY AUTOINCREMENT,
+    item_id    INTEGER NOT NULL REFERENCES order_items(id) ON DELETE CASCADE,
+    user_id    INTEGER REFERENCES users(id),
+    delta      INTEGER NOT NULL,
+    qty_after  INTEGER NOT NULL,
+    note       TEXT DEFAULT '',
+    created_at TEXT NOT NULL DEFAULT (datetime('now'))
+  );
+
+  CREATE TABLE IF NOT EXISTS contracts (
+    id         INTEGER PRIMARY KEY AUTOINCREMENT,
+    name       TEXT NOT NULL,
+    client     TEXT,
+    deadline   TEXT,
+    status     TEXT NOT NULL DEFAULT 'active',
+    notes      TEXT DEFAULT '',
+    created_by INTEGER REFERENCES users(id),
+    created_at TEXT NOT NULL DEFAULT (datetime('now')),
+    closed_at  TEXT
+  );
+
+  CREATE TABLE IF NOT EXISTS contract_lines (
+    id            INTEGER PRIMARY KEY AUTOINCREMENT,
+    contract_id   INTEGER NOT NULL REFERENCES contracts(id) ON DELETE CASCADE,
+    product_name  TEXT NOT NULL,
+    qty_ordered   INTEGER NOT NULL DEFAULT 0,
+    qty_delivered INTEGER NOT NULL DEFAULT 0,
+    unit_price    INTEGER NOT NULL DEFAULT 0
+  );
+`);
 
 // Valeur par défaut = même que l'extérieur pour les marchandises existantes
 db.exec(`UPDATE merchandise SET grow_time_interior = grow_time_minutes WHERE grow_time_interior IS NULL`);

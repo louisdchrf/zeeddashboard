@@ -110,6 +110,7 @@ function switchTab(tab) {
   if (tab === 'orders')    renderOrders();
   if (tab === 'inventory') renderInventory();
   if (tab === 'recipes')   renderRecipes();
+  if (tab === 'contracts') renderContracts();
   if (tab === 'stats')     loadAndRenderStats();
 }
 
@@ -717,6 +718,12 @@ function initSocket() {
     if (recTab?.classList.contains('active')) renderRecipes();
   });
 
+  socket.on('contracts:changed', async () => {
+    await loadContracts();
+    const cTab = document.getElementById('tab-contracts');
+    if (cTab?.classList.contains('active')) renderContracts();
+  });
+
   socket.on('users:online', (users) => renderPresence(users));
 }
 
@@ -795,6 +802,8 @@ function renderInventory() {
           <button class="inv-btn inv-plus" onclick="adjustInventory(${item.id}, +1)">+</button>
         </div>
         ${item.updated_at ? `<div class="inv-item-meta">màj ${item.updated_by_name ? escapeHtml(item.updated_by_name) + ' · ' : ''}${new Date(item.updated_at + 'Z').toLocaleDateString('fr-FR')}</div>` : ''}
+        ${item.location ? `<div class="inv-item-location">📍 ${escapeHtml(item.location)}</div>` : ''}
+        <button class="inv-history-btn" onclick="openMovementsModal(${item.id}, '${escapeHtml(item.name).replace(/'/g, "\\'")}')" title="Historique">📜</button>
       </div>
     `;
   }
@@ -930,6 +939,26 @@ async function loadAndRenderStats() {
         <span class="feed-time">${when}</span>
       </div>`;
     }).join('');
+
+  // Stats ventes par produit (contrats)
+  const salesData = await api.get('/api/contracts/stats') || [];
+  const salesEl = document.getElementById('stats-by-product');
+  if (salesEl) {
+    if (salesData.length === 0) {
+      salesEl.innerHTML = '<p class="empty-state">Aucune donnée — crée des contrats avec des livraisons</p>';
+    } else {
+      const maxRev = Math.max(...salesData.map(s => s.total_revenue), 1);
+      salesEl.innerHTML = salesData.map(s => `
+        <div class="bar-row">
+          <span class="bar-label">${escapeHtml(s.product_name)}</span>
+          <div class="bar-track">
+            <div class="bar-fill" style="width:${Math.round((s.total_revenue / maxRev) * 100)}%;background:var(--accent)"></div>
+          </div>
+          <span class="bar-val">$${s.total_revenue.toLocaleString('fr-FR')} <span style="color:var(--text2);font-size:.75rem">(${s.total_delivered} livrés)</span></span>
+        </div>
+      `).join('');
+    }
+  }
 }
 
 // ── Recettes ──────────────────────────────────────────────────────────────────
@@ -964,32 +993,17 @@ function renderRecipes() {
       <h3 class="recipe-group-title">${escapeHtml(cat)}</h3>
       <div class="recipe-cards">
         ${groups[cat].map(product => {
-          const canMakeArr = product.ingredients.map(ing => {
-            const needed = ing.quantity * qty;
-            return needed > 0 ? Math.floor(ing.stock / needed) : Infinity;
-          });
-          const canMake = canMakeArr.length ? Math.min(...canMakeArr) : 0;
-          const feasible = canMake >= 1;
-
           const ingredientsHtml = product.ingredients.map(ing => {
             const needed = ing.quantity * qty;
-            const ok = ing.stock >= needed;
-            return `<div class="recipe-ingredient ${ok ? 'ok' : 'missing'}">
+            return `<div class="recipe-ingredient">
               <span class="recipe-ing-name">${escapeHtml(ing.name)}</span>
-              <span class="recipe-ing-qty">
-                <span class="needed">${needed}</span>
-                <span class="sep">/</span>
-                <span class="stock ${ok ? 'stock-ok' : 'stock-low'}">${ing.stock} en stock</span>
-              </span>
+              <span class="recipe-ing-qty"><span class="needed">${needed}</span></span>
             </div>`;
           }).join('');
 
-          return `<div class="recipe-card ${feasible ? 'can-make' : 'cannot-make'}">
+          return `<div class="recipe-card">
             <div class="recipe-card-header">
               <span class="recipe-product-name">${escapeHtml(product.name)}</span>
-              <span class="recipe-feasibility ${feasible ? 'feasible' : 'infeasible'}">
-                ${feasible ? `✅ Peut faire ${canMake}` : '❌ Stock insuffisant'}
-              </span>
             </div>
             <div class="recipe-ingredients">${ingredientsHtml}</div>
           </div>`;
@@ -1106,9 +1120,12 @@ function renderOrderItemsList() {
     ? '<p style="color:var(--text2);font-size:.85rem;padding:8px 0">Aucun article — ajoute-en un ci-dessous.</p>'
     : orderItems.map(item => `
         <div class="order-item-row">
-          <span>${escapeHtml(item.name)}</span>
+          <div>
+            <span>${escapeHtml(item.name)}</span>
+            ${item.location ? `<span style="font-size:.75rem;color:var(--text2);margin-left:8px">📍 ${escapeHtml(item.location)}</span>` : ''}
+          </div>
           <div style="display:flex;gap:6px">
-            <button class="btn-edit" onclick="openEditOrderItemModal(${item.id}, '${escapeHtml(item.name).replace(/'/g, "\\'")}')">✏️</button>
+            <button class="btn-edit" onclick="openEditOrderItemModal(${item.id}, '${escapeHtml(item.name).replace(/'/g, "\\'")}', '${escapeHtml(item.location || '').replace(/'/g, "\\'")}')">✏️</button>
             <button class="btn-delete" onclick="deleteOrderItem(${item.id})">🗑️</button>
           </div>
         </div>
@@ -1329,9 +1346,10 @@ document.getElementById('oi-name').addEventListener('keydown', (e) => {
   if (e.key === 'Enter') document.getElementById('btn-add-order-item').click();
 });
 
-function openEditOrderItemModal(id, currentName) {
+function openEditOrderItemModal(id, currentName, currentLocation) {
   document.getElementById('oi-edit-id').value = id;
   document.getElementById('oi-edit-name').value = currentName;
+  document.getElementById('oi-edit-location').value = currentLocation || '';
   document.getElementById('modal-order-item-edit').style.display = 'flex';
 }
 
@@ -1340,10 +1358,11 @@ document.getElementById('cancel-order-item-edit').addEventListener('click', () =
 });
 
 document.getElementById('confirm-order-item-edit').addEventListener('click', async () => {
-  const id   = document.getElementById('oi-edit-id').value;
-  const name = document.getElementById('oi-edit-name').value.trim();
+  const id       = document.getElementById('oi-edit-id').value;
+  const name     = document.getElementById('oi-edit-name').value.trim();
+  const location = document.getElementById('oi-edit-location').value.trim();
   if (!name) return alert('Nom requis.');
-  const r = await api.put(`/api/order-items/${id}`, { name });
+  const r = await api.put(`/api/order-items/${id}`, { name, location });
   if (r?.error) return alert(r.error);
   document.getElementById('modal-order-item-edit').style.display = 'none';
   await loadOrderItems();
@@ -1360,6 +1379,262 @@ async function deleteOrderItem(id) {
   populateOrderItemSelect();
 }
 
+// ── Mouvements de stock ───────────────────────────────────────────────────────
+
+async function openMovementsModal(itemId, itemName) {
+  document.getElementById('movements-title').textContent = `Historique — ${itemName}`;
+  document.getElementById('movements-list').innerHTML = '<p style="color:var(--text2);font-size:.85rem">Chargement…</p>';
+  document.getElementById('modal-movements').style.display = 'flex';
+  const movements = await api.get(`/api/inventory/${itemId}/movements`) || [];
+  const el = document.getElementById('movements-list');
+  if (movements.length === 0) {
+    el.innerHTML = '<p style="color:var(--text2);font-size:.85rem">Aucun mouvement enregistré.</p>';
+    return;
+  }
+  el.innerHTML = movements.map(m => {
+    const sign = m.delta > 0 ? '+' : '';
+    const cls  = m.delta > 0 ? 'mv-plus' : 'mv-minus';
+    const date = new Date(m.created_at + 'Z').toLocaleString('fr-FR');
+    return `<div class="mv-row">
+      <span class="mv-delta ${cls}">${sign}${m.delta}</span>
+      <span class="mv-after">→ ${m.qty_after}</span>
+      <span class="mv-user">${escapeHtml(m.user_name || '—')}</span>
+      <span class="mv-date">${date}</span>
+    </div>`;
+  }).join('');
+}
+
+document.getElementById('close-movements').addEventListener('click', () => {
+  document.getElementById('modal-movements').style.display = 'none';
+});
+
+// ── Discord Notify toggle ─────────────────────────────────────────────────────
+
+let discordNotifyEnabled = true;
+
+function initNotifyToggle(user) {
+  discordNotifyEnabled = user.discord_notify !== 0;
+  const btn = document.getElementById('btn-discord-notify');
+  if (!btn) return;
+  // Seuls les vrais comptes Discord peuvent toggle
+  const isRealUser = user.discord_id && user.discord_id !== '__admin__' && user.discord_id !== 'local';
+  if (!isRealUser) { btn.style.display = 'none'; return; }
+  updateNotifyBtn();
+  btn.addEventListener('click', async () => {
+    discordNotifyEnabled = !discordNotifyEnabled;
+    await api.patch('/api/users/me/notify', { discord_notify: discordNotifyEnabled });
+    updateNotifyBtn();
+  });
+}
+
+function updateNotifyBtn() {
+  const btn = document.getElementById('btn-discord-notify');
+  if (!btn) return;
+  btn.textContent = discordNotifyEnabled ? '🔔' : '🔕';
+  btn.title = discordNotifyEnabled ? 'Notifications Discord activées (cliquer pour désactiver)' : 'Notifications Discord désactivées (cliquer pour activer)';
+  btn.classList.toggle('notify-off', !discordNotifyEnabled);
+}
+
+// ── Contrats ──────────────────────────────────────────────────────────────────
+
+let contracts = [];
+let currentContractDetailId = null;
+
+async function loadContracts() {
+  contracts = await api.get('/api/contracts') || [];
+}
+
+function renderContracts() {
+  const el = document.getElementById('contracts-list');
+  if (!el) return;
+  if (contracts.length === 0) {
+    el.innerHTML = '<p style="color:var(--text2);padding:24px">Aucun contrat. Crée-en un avec le bouton ci-dessus.</p>';
+    return;
+  }
+  const active = contracts.filter(c => c.status === 'active');
+  const closed = contracts.filter(c => c.status === 'closed');
+  function renderGroup(list, title) {
+    if (list.length === 0) return '';
+    return `<div class="contracts-group">
+      <div class="contracts-group-title">${title}</div>
+      ${list.map(renderContractRow).join('')}
+    </div>`;
+  }
+  el.innerHTML = renderGroup(active, 'En cours') + renderGroup(closed, 'Clôturés');
+}
+
+function renderContractRow(c) {
+  const progress = c.total_value > 0 ? Math.round((c.delivered_value / c.total_value) * 100) : 0;
+  const deadline = c.deadline ? new Date(c.deadline).toLocaleDateString('fr-FR') : '—';
+  const isClosed = c.status === 'closed';
+  const totalFmt = c.total_value ? `$${c.total_value.toLocaleString('fr-FR')}` : '—';
+  const delivFmt = c.delivered_value ? `$${c.delivered_value.toLocaleString('fr-FR')}` : '$0';
+  return `<div class="contract-row${isClosed ? ' contract-closed' : ''}">
+    <div class="contract-row-main">
+      <div class="contract-row-info">
+        <span class="contract-name">${escapeHtml(c.name)}</span>
+        ${c.client ? `<span class="contract-client">👤 ${escapeHtml(c.client)}</span>` : ''}
+        <span class="contract-deadline">📅 ${deadline}</span>
+        <span class="contract-lines-count">${c.line_count} ligne${c.line_count !== 1 ? 's' : ''}</span>
+      </div>
+      <div class="contract-row-money">
+        <span class="contract-money-delivered">${delivFmt}</span>
+        <span class="contract-money-sep">/</span>
+        <span class="contract-money-total">${totalFmt}</span>
+      </div>
+    </div>
+    ${c.total_value > 0 ? `<div class="contract-progress-bar"><div class="contract-progress-fill" style="width:${progress}%"></div></div>` : ''}
+    <div class="contract-row-actions">
+      <button class="btn-secondary btn-sm" onclick="openContractDetail(${c.id})">Détails</button>
+      <button class="btn-secondary btn-sm" onclick="openEditContractModal(${c.id})" title="Modifier">✏️</button>
+      <button class="btn-secondary btn-sm" onclick="toggleContractStatus(${c.id})">${isClosed ? '🔓 Rouvrir' : '🔒 Clôturer'}</button>
+      <button class="btn-icon danger" onclick="deleteContract(${c.id})" title="Supprimer">🗑️</button>
+    </div>
+    ${c.notes ? `<div class="contract-notes">${escapeHtml(c.notes)}</div>` : ''}
+  </div>`;
+}
+
+document.getElementById('btn-add-contract').addEventListener('click', () => {
+  document.getElementById('contract-modal-title').textContent = 'Nouveau contrat';
+  document.getElementById('c-id').value = '';
+  document.getElementById('c-name').value = '';
+  document.getElementById('c-client').value = '';
+  document.getElementById('c-deadline').value = '';
+  document.getElementById('c-notes').value = '';
+  document.getElementById('modal-contract').style.display = 'flex';
+});
+
+function openEditContractModal(id) {
+  const c = contracts.find(x => x.id === id);
+  if (!c) return;
+  document.getElementById('contract-modal-title').textContent = 'Modifier le contrat';
+  document.getElementById('c-id').value = c.id;
+  document.getElementById('c-name').value = c.name;
+  document.getElementById('c-client').value = c.client || '';
+  document.getElementById('c-deadline').value = c.deadline ? c.deadline.slice(0, 10) : '';
+  document.getElementById('c-notes').value = c.notes || '';
+  document.getElementById('modal-contract').style.display = 'flex';
+}
+
+document.getElementById('cancel-contract').addEventListener('click', () => {
+  document.getElementById('modal-contract').style.display = 'none';
+});
+
+document.getElementById('confirm-contract').addEventListener('click', async () => {
+  const id       = document.getElementById('c-id').value;
+  const name     = document.getElementById('c-name').value.trim();
+  const client   = document.getElementById('c-client').value.trim();
+  const deadline = document.getElementById('c-deadline').value;
+  const notes    = document.getElementById('c-notes').value.trim();
+  if (!name) return alert('Nom requis.');
+  const r = id
+    ? await api.put(`/api/contracts/${id}`, { name, client, deadline, notes })
+    : await api.post('/api/contracts', { name, client, deadline, notes });
+  if (r?.error) return alert(r.error);
+  document.getElementById('modal-contract').style.display = 'none';
+  await loadContracts();
+  renderContracts();
+});
+
+async function toggleContractStatus(id) {
+  const r = await api.post(`/api/contracts/${id}/toggle-status`, {});
+  if (r?.error) return alert(r.error);
+  await loadContracts();
+  renderContracts();
+}
+
+async function deleteContract(id) {
+  if (!confirm('Supprimer ce contrat et toutes ses lignes ?')) return;
+  const r = await api.delete(`/api/contracts/${id}`);
+  if (r?.error) return alert(r.error);
+  await loadContracts();
+  renderContracts();
+}
+
+// ── Détail contrat ────────────────────────────────────────────────────────────
+
+async function openContractDetail(id) {
+  currentContractDetailId = id;
+  const c = contracts.find(x => x.id === id);
+  if (!c) return;
+  document.getElementById('contract-detail-title').textContent = escapeHtml(c.name);
+  const statusLabel = c.status === 'closed' ? '🔒 Clôturé' : '🟢 En cours';
+  const deadline    = c.deadline ? new Date(c.deadline).toLocaleDateString('fr-FR') : '—';
+  document.getElementById('contract-detail-meta').innerHTML = `
+    <span>${statusLabel}</span>${c.client ? ` · <span>👤 ${escapeHtml(c.client)}</span>` : ''} · <span>📅 ${deadline}</span>
+  `;
+  document.getElementById('modal-contract-detail').style.display = 'flex';
+  await renderContractLines(id);
+}
+
+async function renderContractLines(contractId) {
+  const lines = await api.get(`/api/contracts/${contractId}/lines`) || [];
+  const el = document.getElementById('contract-lines-list');
+  if (lines.length === 0) {
+    el.innerHTML = '<p style="color:var(--text2);font-size:.85rem;padding:8px 0">Aucune ligne — ajoute-en une ci-dessous.</p>';
+    return;
+  }
+  el.innerHTML = `<div class="cl-header">
+    <span>Produit</span><span>Commandé</span><span>Livré</span><span>Prix/u</span><span>Total</span><span></span>
+  </div>` + lines.map(l => {
+    const total = l.qty_delivered * l.unit_price;
+    return `<div class="cl-row">
+      <span class="cl-product">${escapeHtml(l.product_name)}</span>
+      <span><input type="number" class="cl-input" value="${l.qty_ordered}" min="0" onchange="updateContractLine(${contractId}, ${l.id}, 'qty_ordered', this.value, this)" data-field="qty_ordered"/></span>
+      <span><input type="number" class="cl-input cl-delivered" value="${l.qty_delivered}" min="0" max="${l.qty_ordered}" onchange="updateContractLine(${contractId}, ${l.id}, 'qty_delivered', this.value, this)" data-field="qty_delivered"/></span>
+      <span><input type="number" class="cl-input" value="${l.unit_price}" min="0" onchange="updateContractLine(${contractId}, ${l.id}, 'unit_price', this.value, this)" data-field="unit_price"/></span>
+      <span class="cl-total" id="cl-total-${l.id}">$${total.toLocaleString('fr-FR')}</span>
+      <button class="btn-icon danger" onclick="deleteContractLine(${contractId}, ${l.id})" title="Supprimer">🗑️</button>
+    </div>`;
+  }).join('');
+}
+
+async function updateContractLine(contractId, lineId, field, value, inputEl) {
+  const row = inputEl.closest('.cl-row');
+  const inputs = row.querySelectorAll('.cl-input');
+  const data = {
+    product_name:  row.querySelector('.cl-product').textContent,
+    qty_ordered:   parseInt(inputs[0].value) || 0,
+    qty_delivered: parseInt(inputs[1].value) || 0,
+    unit_price:    parseInt(inputs[2].value) || 0,
+  };
+  await api.put(`/api/contracts/${contractId}/lines/${lineId}`, data);
+  const total = data.qty_delivered * data.unit_price;
+  const totalEl = document.getElementById(`cl-total-${lineId}`);
+  if (totalEl) totalEl.textContent = `$${total.toLocaleString('fr-FR')}`;
+  await loadContracts();
+  renderContracts();
+}
+
+async function deleteContractLine(contractId, lineId) {
+  if (!confirm('Supprimer cette ligne ?')) return;
+  await api.delete(`/api/contracts/${contractId}/lines/${lineId}`);
+  await renderContractLines(contractId);
+  await loadContracts();
+  renderContracts();
+}
+
+document.getElementById('btn-add-contract-line').addEventListener('click', async () => {
+  const product  = document.getElementById('cl-product').value.trim();
+  const qty      = parseInt(document.getElementById('cl-qty').value) || 0;
+  const price    = parseInt(document.getElementById('cl-price').value) || 0;
+  if (!product) return alert('Produit requis.');
+  const r = await api.post(`/api/contracts/${currentContractDetailId}/lines`, {
+    product_name: product, qty_ordered: qty, unit_price: price,
+  });
+  if (r?.error) return alert(r.error);
+  document.getElementById('cl-product').value = '';
+  document.getElementById('cl-qty').value = '';
+  document.getElementById('cl-price').value = '';
+  await renderContractLines(currentContractDetailId);
+  await loadContracts();
+  renderContracts();
+});
+
+document.getElementById('close-contract-detail').addEventListener('click', () => {
+  document.getElementById('modal-contract-detail').style.display = 'none';
+});
+
 // ── Boot ──────────────────────────────────────────────────────────────────────
 (async () => {
   const user = await checkAuth();
@@ -1371,6 +1646,8 @@ async function deleteOrderItem(id) {
   await loadUsers();
   await loadInventory();
   await loadRecipes();
+  await loadContracts();
   if (user.is_admin) await loadSettings();
+  initNotifyToggle(user);
   initSocket();
 })();

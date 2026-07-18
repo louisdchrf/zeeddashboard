@@ -639,7 +639,8 @@ setInterval(async () => {
   const notifyChannelId = getSetting('discord_notify_channel_id');
 
   const ready = db.prepare(`
-    SELECT p.*, m.name AS merchandise_name, u.username AS player_name, u.discord_id AS player_discord_id
+    SELECT p.*, m.name AS merchandise_name, u.username AS player_name, u.discord_id AS player_discord_id,
+           COALESCE(u.discord_notify, 1) AS discord_notify
     FROM points p
     JOIN merchandise m ON p.merchandise_id = m.id
     LEFT JOIN users u ON p.user_id = u.id
@@ -660,11 +661,11 @@ setInterval(async () => {
       let sent = false;
 
       if (p.visibility === 'personal') {
-        // MP au propriétaire si c'est un vrai compte Discord
+        // MP au propriétaire si c'est un vrai compte Discord et que les notifs sont activées
         const discordId = p.player_discord_id;
         const isRealUser = discordId && discordId !== '__admin__' && discordId !== 'local';
-        if (!isRealUser) {
-          // Pas de compte Discord → on marque quand même pour ne pas boucler indéfiniment
+        if (!isRealUser || !p.discord_notify) {
+          // Pas de compte Discord ou notifs désactivées
           db.prepare('UPDATE points SET notified=1 WHERE id=?').run(p.id);
           continue;
         }
@@ -783,13 +784,37 @@ app.put('/api/inventory/:itemId', (req, res) => {
       updated_by = excluded.updated_by,
       updated_at = excluded.updated_at
   `).run(req.params.itemId, newQty, req.session.userId);
+  db.prepare(`
+    INSERT INTO stock_movements (item_id, user_id, delta, qty_after, created_at)
+    VALUES (?, ?, ?, ?, datetime('now'))
+  `).run(req.params.itemId, req.session.userId, delta, newQty);
   broadcast('inventory:changed', {});
   res.json({ quantity: newQty });
 });
 
 // ── Users list (pour assignation des commandes) ───────────────────────────────
 app.get('/api/users', (_, res) => {
-  res.json(db.prepare('SELECT id, username, avatar, discord_id FROM users ORDER BY username').all());
+  res.json(db.prepare('SELECT id, username, avatar, discord_id, discord_notify FROM users ORDER BY username').all());
+});
+
+app.patch('/api/users/me/notify', (req, res) => {
+  const { discord_notify } = req.body;
+  db.prepare('UPDATE users SET discord_notify=? WHERE id=?').run(discord_notify ? 1 : 0, req.session.userId);
+  res.json({ success: true, discord_notify: discord_notify ? 1 : 0 });
+});
+
+// ── Mouvements de stock ───────────────────────────────────────────────────────
+
+app.get('/api/inventory/:itemId/movements', (req, res) => {
+  const movements = db.prepare(`
+    SELECT sm.*, u.username AS user_name
+    FROM stock_movements sm
+    LEFT JOIN users u ON sm.user_id = u.id
+    WHERE sm.item_id = ?
+    ORDER BY sm.created_at DESC
+    LIMIT 50
+  `).all(req.params.itemId);
+  res.json(movements);
 });
 
 // ── Order items ───────────────────────────────────────────────────────────────
@@ -810,10 +835,10 @@ app.post('/api/order-items', requireAdmin, (req, res) => {
 });
 
 app.put('/api/order-items/:id', requireAdmin, (req, res) => {
-  const { name } = req.body;
+  const { name, location } = req.body;
   if (!name?.trim()) return res.status(400).json({ error: 'Nom requis' });
   try {
-    db.prepare('UPDATE order_items SET name=? WHERE id=?').run(name.trim(), req.params.id);
+    db.prepare('UPDATE order_items SET name=?, location=? WHERE id=?').run(name.trim(), location || null, req.params.id);
     res.json({ success: true });
   } catch (e) {
     if (e.message.includes('UNIQUE')) return res.status(400).json({ error: 'Cet article existe déjà' });
@@ -871,13 +896,13 @@ app.post('/api/orders', async (req, res) => {
   if (token && channelId) {
     try {
       const assignees = db.prepare(`
-        SELECT u.username, u.discord_id
+        SELECT u.username, u.discord_id, COALESCE(u.discord_notify, 1) AS discord_notify
         FROM order_assignments oa JOIN users u ON oa.user_id = u.id
         WHERE oa.order_id = ?
       `).all(orderId);
 
       const mentions = assignees
-        .filter(u => u.discord_id && u.discord_id !== '__admin__' && u.discord_id !== 'local')
+        .filter(u => u.discord_id && u.discord_id !== '__admin__' && u.discord_id !== 'local' && u.discord_notify)
         .map(u => `<@${u.discord_id}>`).join(' ');
 
       const deadlineStr = deadline
@@ -979,6 +1004,105 @@ app.delete('/api/orders/:id', (req, res) => {
   db.prepare('DELETE FROM orders WHERE id=?').run(req.params.id);
   broadcast('orders:changed', {});
   res.json({ success: true });
+});
+
+// ── Contrats ──────────────────────────────────────────────────────────────────
+
+app.get('/api/contracts', (_, res) => {
+  const contracts = db.prepare(`
+    SELECT c.*, u.username AS created_by_name,
+           (SELECT COUNT(*) FROM contract_lines WHERE contract_id = c.id) AS line_count,
+           (SELECT COALESCE(SUM(qty_ordered * unit_price), 0) FROM contract_lines WHERE contract_id = c.id) AS total_value,
+           (SELECT COALESCE(SUM(qty_delivered * unit_price), 0) FROM contract_lines WHERE contract_id = c.id) AS delivered_value
+    FROM contracts c
+    LEFT JOIN users u ON c.created_by = u.id
+    ORDER BY c.created_at DESC
+  `).all();
+  res.json(contracts);
+});
+
+app.post('/api/contracts', (req, res) => {
+  const { name, client, deadline, notes } = req.body;
+  if (!name?.trim()) return res.status(400).json({ error: 'Nom requis' });
+  const r = db.prepare(`
+    INSERT INTO contracts (name, client, deadline, notes, created_by)
+    VALUES (?, ?, ?, ?, ?)
+  `).run(name.trim(), client || null, deadline || null, notes || '', req.session.userId);
+  broadcast('contracts:changed', {});
+  res.json({ id: r.lastInsertRowid });
+});
+
+app.put('/api/contracts/:id', (req, res) => {
+  const { name, client, deadline, notes } = req.body;
+  if (!name?.trim()) return res.status(400).json({ error: 'Nom requis' });
+  db.prepare('UPDATE contracts SET name=?, client=?, deadline=?, notes=? WHERE id=?')
+    .run(name.trim(), client || null, deadline || null, notes || '', req.params.id);
+  broadcast('contracts:changed', {});
+  res.json({ success: true });
+});
+
+app.delete('/api/contracts/:id', requireAdmin, (req, res) => {
+  db.prepare('DELETE FROM contracts WHERE id=?').run(req.params.id);
+  broadcast('contracts:changed', {});
+  res.json({ success: true });
+});
+
+app.post('/api/contracts/:id/toggle-status', (req, res) => {
+  const c = db.prepare('SELECT status FROM contracts WHERE id=?').get(req.params.id);
+  if (!c) return res.status(404).json({ error: 'Contrat introuvable' });
+  const newStatus = c.status === 'closed' ? 'active' : 'closed';
+  if (newStatus === 'closed') {
+    db.prepare("UPDATE contracts SET status='closed', closed_at=datetime('now') WHERE id=?").run(req.params.id);
+  } else {
+    db.prepare("UPDATE contracts SET status='active', closed_at=NULL WHERE id=?").run(req.params.id);
+  }
+  broadcast('contracts:changed', {});
+  res.json({ status: newStatus });
+});
+
+app.get('/api/contracts/:id/lines', (req, res) => {
+  res.json(db.prepare('SELECT * FROM contract_lines WHERE contract_id=? ORDER BY id').all(req.params.id));
+});
+
+app.post('/api/contracts/:id/lines', (req, res) => {
+  const { product_name, qty_ordered, unit_price } = req.body;
+  if (!product_name?.trim()) return res.status(400).json({ error: 'Produit requis' });
+  const r = db.prepare(`
+    INSERT INTO contract_lines (contract_id, product_name, qty_ordered, unit_price)
+    VALUES (?, ?, ?, ?)
+  `).run(req.params.id, product_name.trim(), qty_ordered || 0, unit_price || 0);
+  broadcast('contracts:changed', {});
+  res.json({ id: r.lastInsertRowid });
+});
+
+app.put('/api/contracts/:id/lines/:lid', (req, res) => {
+  const { product_name, qty_ordered, qty_delivered, unit_price } = req.body;
+  db.prepare(`
+    UPDATE contract_lines SET product_name=?, qty_ordered=?, qty_delivered=?, unit_price=?
+    WHERE id=? AND contract_id=?
+  `).run(product_name, qty_ordered || 0, qty_delivered || 0, unit_price || 0, req.params.lid, req.params.id);
+  broadcast('contracts:changed', {});
+  res.json({ success: true });
+});
+
+app.delete('/api/contracts/:id/lines/:lid', (req, res) => {
+  db.prepare('DELETE FROM contract_lines WHERE id=? AND contract_id=?').run(req.params.lid, req.params.id);
+  broadcast('contracts:changed', {});
+  res.json({ success: true });
+});
+
+app.get('/api/contracts/stats', (_, res) => {
+  const rows = db.prepare(`
+    SELECT cl.product_name,
+           SUM(cl.qty_ordered)   AS total_ordered,
+           SUM(cl.qty_delivered) AS total_delivered,
+           SUM(cl.qty_delivered * cl.unit_price) AS total_revenue
+    FROM contract_lines cl
+    JOIN contracts c ON cl.contract_id = c.id
+    GROUP BY cl.product_name
+    ORDER BY total_revenue DESC
+  `).all();
+  res.json(rows);
 });
 
 server.listen(3000, () => console.log('GTA Dashboard → http://localhost:3000'));
