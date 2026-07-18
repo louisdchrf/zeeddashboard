@@ -4,6 +4,11 @@ Toutes les modifications notables du projet sont documentées ici.
 
 ---
 
+## v26.0718.1350 — 18/07/2026 à 13:50
+
+Mise à jour 26.0718.1350
+
+
 ## v26.0717.1245 — 17/07/2026 à 12:45
 
 Onglet Inventaire + liste produits commandables forcée (Psilocybine, Zeed, Pandoxine, Krakenine, Virus-Z) avec catégories
