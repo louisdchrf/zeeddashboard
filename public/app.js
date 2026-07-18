@@ -751,15 +751,22 @@ setInterval(async () => {
 
 // ── Inventaire ────────────────────────────────────────────────────────────────
 let inventory = [];
-// Favoris inventaire (localStorage)
-function getInvFavorites() {
-  try { return new Set(JSON.parse(localStorage.getItem('inv_favorites') || '[]')); }
-  catch(e) { return new Set(); }
+// Favoris inventaire (stockés en base, par compte)
+let invFavorites = new Set();
+
+async function loadInvFavorites() {
+  const ids = await api.get('/api/inventory/favorites') || [];
+  invFavorites = new Set(ids);
 }
-function toggleFavorite(itemId) {
-  const favs = getInvFavorites();
-  if (favs.has(itemId)) favs.delete(itemId); else favs.add(itemId);
-  localStorage.setItem('inv_favorites', JSON.stringify([...favs]));
+
+async function toggleFavorite(itemId) {
+  if (invFavorites.has(itemId)) {
+    invFavorites.delete(itemId);
+    await api.delete(`/api/inventory/favorites/${itemId}`);
+  } else {
+    invFavorites.add(itemId);
+    await api.post(`/api/inventory/favorites/${itemId}`, {});
+  }
   renderInventory();
 }
 
@@ -776,7 +783,7 @@ function renderInventory() {
     return;
   }
 
-  const favs = getInvFavorites();
+  const favs = invFavorites;
 
   // Grouper par catégorie
   const groups = {};
@@ -1722,6 +1729,7 @@ document.getElementById('close-contract-detail').addEventListener('click', () =>
   await loadOrders();
   await loadUsers();
   await loadInventory();
+  await loadInvFavorites();
   await loadRecipes();
   await loadContracts();
   if (user.is_admin) await loadSettings();

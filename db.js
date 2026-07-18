@@ -122,6 +122,12 @@ db.exec(`
     created_at TEXT NOT NULL DEFAULT (datetime('now'))
   );
 
+  CREATE TABLE IF NOT EXISTS inventory_favorites (
+    user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    item_id INTEGER NOT NULL REFERENCES order_items(id) ON DELETE CASCADE,
+    PRIMARY KEY (user_id, item_id)
+  );
+
   CREATE TABLE IF NOT EXISTS inventory_stock (
     id         INTEGER PRIMARY KEY AUTOINCREMENT,
     item_id    INTEGER NOT NULL REFERENCES order_items(id) ON DELETE CASCADE,

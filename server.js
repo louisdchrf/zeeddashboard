@@ -820,6 +820,23 @@ app.patch('/api/users/me/notify', (req, res) => {
   res.json({ success: true, discord_notify: discord_notify ? 1 : 0 });
 });
 
+// ── Favoris inventaire ────────────────────────────────────────────────────────
+
+app.get('/api/inventory/favorites', (req, res) => {
+  const rows = db.prepare('SELECT item_id FROM inventory_favorites WHERE user_id=?').all(req.session.userId);
+  res.json(rows.map(r => r.item_id));
+});
+
+app.post('/api/inventory/favorites/:itemId', (req, res) => {
+  db.prepare('INSERT OR IGNORE INTO inventory_favorites (user_id, item_id) VALUES (?, ?)').run(req.session.userId, req.params.itemId);
+  res.json({ success: true });
+});
+
+app.delete('/api/inventory/favorites/:itemId', (req, res) => {
+  db.prepare('DELETE FROM inventory_favorites WHERE user_id=? AND item_id=?').run(req.session.userId, req.params.itemId);
+  res.json({ success: true });
+});
+
 // ── Attribution stock par membre (set direct, pas delta) ─────────────────────
 
 app.put('/api/inventory/:itemId/stocks', (req, res) => {
