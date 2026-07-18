@@ -496,7 +496,7 @@ async function patchOrderMessage(orderId, token, channelId) {
   const deadlineStr   = order.deadline ? new Date(order.deadline).toLocaleDateString('fr-FR') : 'Non définie';
   const assigneeNames = assignees.map(u => u.username).join(', ') || '—';
 
-  const embed = buildOrderEmbed(orderId, order.item_name, order.quantity, order.status, assigneeNames, deadlineStr);
+  const embed = buildOrderEmbed(orderId, order.item_name, order.quantity, order.status, assigneeNames, deadlineStr, order.client);
   try {
     await botPatch(`/channels/${channelId}/messages/${order.discord_message_id}`, embed, token);
   } catch (e) {
@@ -517,29 +517,46 @@ async function verifyDiscordSig(rawBody, signature, timestamp, publicKeyHex) {
   } catch { return false; }
 }
 
-function buildOrderEmbed(orderId, itemName, quantity, status, assigneeNames, deadlineStr) {
-  const statusLabel = { pending: '⏳ En attente', in_progress: '🔄 En cours', to_deliver: '📦 À livrer', done: '✅ Terminée' }[status] || '⏳ En attente';
-  const color       = { pending: 0x7480a0, in_progress: 0x58a6ff, to_deliver: 0xbc8cff, done: 0x3ab96b }[status] || 0x7480a0;
+function buildOrderEmbed(orderId, itemName, quantity, status, assigneeNames, deadlineStr, client) {
+  const statusLabel = {
+    pending:     '⏳ En attente',
+    in_progress: '🔄 En cours',
+    to_deliver:  '📦 À livrer',
+    done:        '✅ Terminée',
+  }[status] || '⏳ En attente';
 
-  const embeds = [{
-    title: '📦 Nouvelle commande !',
-    color,
-    fields: [
-      { name: 'Article',   value: itemName,           inline: true  },
-      { name: 'Quantité',  value: String(quantity),   inline: true  },
-      { name: 'Deadline',  value: deadlineStr,        inline: true  },
-      { name: 'Assigné à', value: assigneeNames,      inline: false },
-      { name: 'Statut',    value: statusLabel,        inline: true  },
-    ],
-  }];
+  const color = {
+    pending:     0x8b949e,
+    in_progress: 0x79c0ff,
+    to_deliver:  0xd2a8ff,
+    done:        0x56d364,
+  }[status] || 0x8b949e;
 
-  const components = status !== 'done' ? [{
-    type: 1,
-    components: [
-      ...(status === 'pending' ? [{ type: 2, style: 1, label: '🔄 En cours',  custom_id: `order_inprogress_${orderId}` }] : []),
-      { type: 2, style: 3, label: '✅ Terminée', custom_id: `order_done_${orderId}` },
-    ],
-  }] : [];
+  const title = {
+    pending:     '📦 Nouvelle commande',
+    in_progress: '🔄 Commande en cours',
+    to_deliver:  '📦 Commande à livrer',
+    done:        '✅ Commande terminée',
+  }[status] || '📦 Commande';
+
+  const fields = [
+    { name: 'Article',   value: itemName,         inline: true },
+    { name: 'Quantité',  value: String(quantity),  inline: true },
+    { name: 'Deadline',  value: deadlineStr,       inline: true },
+    { name: 'Assigné à', value: assigneeNames,     inline: false },
+  ];
+  if (client) fields.push({ name: 'Client',   value: client,      inline: true });
+  fields.push(  { name: 'Statut',   value: statusLabel,  inline: true });
+
+  const embeds = [{ title, color, fields }];
+
+  // Un seul bouton = l'étape suivante dans le workflow
+  let nextButton = null;
+  if (status === 'pending')     nextButton = { type: 2, style: 1, label: '🔄 En cours',    custom_id: `order_inprogress_${orderId}` };
+  if (status === 'in_progress') nextButton = { type: 2, style: 1, label: '📦 À livrer',    custom_id: `order_to_deliver_${orderId}` };
+  if (status === 'to_deliver')  nextButton = { type: 2, style: 3, label: '✅ Terminée',    custom_id: `order_done_${orderId}` };
+
+  const components = nextButton ? [{ type: 1, components: [nextButton] }] : [];
 
   return { embeds, components };
 }
@@ -579,6 +596,10 @@ app.post('/discord/interactions', async (req, res) => {
       orderId   = parseInt(customId.replace('order_inprogress_', ''));
       newStatus = 'in_progress';
       db.prepare("UPDATE orders SET status='in_progress' WHERE id=? AND status='pending'").run(orderId);
+    } else if (customId.startsWith('order_to_deliver_')) {
+      orderId   = parseInt(customId.replace('order_to_deliver_', ''));
+      newStatus = 'to_deliver';
+      db.prepare("UPDATE orders SET status='to_deliver' WHERE id=? AND status='in_progress'").run(orderId);
     } else if (customId.startsWith('order_done_')) {
       orderId   = parseInt(customId.replace('order_done_', ''));
       newStatus = 'done';
@@ -592,9 +613,12 @@ app.post('/discord/interactions', async (req, res) => {
     const deadlineStr   = order?.deadline ? new Date(order.deadline).toLocaleDateString('fr-FR') : 'Non définie';
     const assigneeNames = assignees.map(u => u.username).join(', ') || '—';
 
+    // Broadcast temps-réel vers le dashboard
+    io.emit('order_updated', { id: orderId, status: newStatus });
+
     return res.json({
       type: 7, // UPDATE_MESSAGE
-      data: buildOrderEmbed(orderId, order?.item_name || '?', order?.quantity || 1, newStatus, assigneeNames, deadlineStr),
+      data: buildOrderEmbed(orderId, order?.item_name || '?', order?.quantity || 1, newStatus, assigneeNames, deadlineStr, order?.client),
     });
   }
 
@@ -861,7 +885,7 @@ app.post('/api/orders', async (req, res) => {
         : 'Non définie';
 
       const assigneeNames = assignees.map(u => u.username).join(', ') || '—';
-      const embed = buildOrderEmbed(orderId, item.name, quantity, 'pending', assigneeNames, deadlineStr);
+      const embed = buildOrderEmbed(orderId, item.name, quantity, 'pending', assigneeNames, deadlineStr, client);
       const msgRes = await botPost(`/channels/${channelId}/messages`, { content: mentions || null, ...embed }, token);
       if (msgRes.ok) {
         const msgData = await msgRes.json();
