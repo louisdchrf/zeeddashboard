@@ -744,22 +744,32 @@ setInterval(async () => {
 
 // ── Inventaire ────────────────────────────────────────────────────────────────
 let inventory = [];
-let invActiveCategory = null; // null = tout afficher
+// Favoris inventaire (localStorage)
+function getInvFavorites() {
+  try { return new Set(JSON.parse(localStorage.getItem('inv_favorites') || '[]')); }
+  catch(e) { return new Set(); }
+}
+function toggleFavorite(itemId) {
+  const favs = getInvFavorites();
+  if (favs.has(itemId)) favs.delete(itemId); else favs.add(itemId);
+  localStorage.setItem('inv_favorites', JSON.stringify([...favs]));
+  renderInventory();
+}
 
 async function loadInventory() {
   inventory = await api.get('/api/inventory') || [];
 }
 
 function renderInventory() {
-  const grid      = document.getElementById('inventory-grid');
-  const subtabsEl = document.getElementById('inv-subtabs');
+  const grid = document.getElementById('inventory-grid');
   if (!grid) return;
 
   if (inventory.length === 0) {
-    if (subtabsEl) subtabsEl.innerHTML = '';
     grid.innerHTML = '<p style="color:var(--text2);padding:24px">Aucun article configuré.</p>';
     return;
   }
+
+  const favs = getInvFavorites();
 
   // Grouper par catégorie
   const groups = {};
@@ -770,45 +780,45 @@ function renderInventory() {
     groups[cat].push(item);
   }
 
-  // Initialiser catégorie active sur la première si non définie
-  if (!invActiveCategory || !groups[invActiveCategory]) {
-    invActiveCategory = groupOrder[0];
-  }
-
-  // Sous-onglets
-  if (subtabsEl) {
-    subtabsEl.innerHTML = groupOrder.map(cat => `
-      <button class="inv-subtab ${cat === invActiveCategory ? 'active' : ''}" data-cat="${escapeHtml(cat)}">
-        ${escapeHtml(cat)}
-        <span class="inv-subtab-count">${groups[cat].length}</span>
-      </button>
-    `).join('');
-    subtabsEl.querySelectorAll('.inv-subtab').forEach(btn => {
-      btn.addEventListener('click', () => {
-        invActiveCategory = btn.dataset.cat;
-        renderInventory();
-      });
-    });
-  }
-
-  // Items de la catégorie active uniquement
-  const items = groups[invActiveCategory] || [];
-  grid.innerHTML = `
-    <div class="inv-group-items">
-      ${items.map(item => `
-        <div class="inv-item" data-id="${item.id}">
+  function renderItem(item) {
+    const isFav = favs.has(item.id);
+    return `
+      <div class="inv-item${isFav ? ' inv-item-fav' : ''}" data-id="${item.id}">
+        <div class="inv-item-header">
           <div class="inv-item-name">${escapeHtml(item.name)}</div>
-          <div class="inv-item-qty ${item.quantity > 0 ? 'qty-positive' : 'qty-zero'}" id="inv-qty-${item.id}">${item.quantity}</div>
-          <div class="inv-item-controls">
-            <button class="inv-btn inv-minus" onclick="adjustInventory(${item.id}, -1)">−</button>
-            <input class="inv-adj" type="number" id="inv-adj-${item.id}" value="1" min="1" max="999"/>
-            <button class="inv-btn inv-plus" onclick="adjustInventory(${item.id}, +1)">+</button>
-          </div>
-          ${item.updated_at ? `<div class="inv-item-meta">màj ${item.updated_by_name ? escapeHtml(item.updated_by_name) + ' · ' : ''}${new Date(item.updated_at + 'Z').toLocaleDateString('fr-FR')}</div>` : ''}
+          <button class="inv-fav-btn${isFav ? ' active' : ''}" onclick="toggleFavorite(${item.id})" title="${isFav ? 'Retirer des favoris' : 'Ajouter aux favoris'}">★</button>
         </div>
-      `).join('')}
-    </div>
-  `;
+        <div class="inv-item-qty ${item.quantity > 0 ? 'qty-positive' : 'qty-zero'}" id="inv-qty-${item.id}">${item.quantity}</div>
+        <div class="inv-item-controls">
+          <button class="inv-btn inv-minus" onclick="adjustInventory(${item.id}, -1)">−</button>
+          <input class="inv-adj" type="number" id="inv-adj-${item.id}" value="1" min="1" max="999"/>
+          <button class="inv-btn inv-plus" onclick="adjustInventory(${item.id}, +1)">+</button>
+        </div>
+        ${item.updated_at ? `<div class="inv-item-meta">màj ${item.updated_by_name ? escapeHtml(item.updated_by_name) + ' · ' : ''}${new Date(item.updated_at + 'Z').toLocaleDateString('fr-FR')}</div>` : ''}
+      </div>
+    `;
+  }
+
+  let html = '';
+
+  // Section Favoris en premier
+  const favItems = inventory.filter(i => favs.has(i.id));
+  if (favItems.length > 0) {
+    html += `<div class="inv-section">
+      <div class="inv-section-header inv-section-fav">★ Favoris <span class="inv-section-count">${favItems.length}</span></div>
+      <div class="inv-group-items">${favItems.map(renderItem).join('')}</div>
+    </div>`;
+  }
+
+  // Sections par catégorie
+  for (const cat of groupOrder) {
+    html += `<div class="inv-section">
+      <div class="inv-section-header">${escapeHtml(cat)} <span class="inv-section-count">${groups[cat].length}</span></div>
+      <div class="inv-group-items">${groups[cat].map(renderItem).join('')}</div>
+    </div>`;
+  }
+
+  grid.innerHTML = html;
 }
 
 async function adjustInventory(itemId, direction) {
