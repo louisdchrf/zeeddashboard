@@ -70,6 +70,14 @@ db.exec(`
     updated_by INTEGER REFERENCES users(id),
     updated_at TEXT NOT NULL DEFAULT (datetime('now'))
   );
+
+  CREATE TABLE IF NOT EXISTS recipes (
+    id            INTEGER PRIMARY KEY AUTOINCREMENT,
+    product_id    INTEGER NOT NULL REFERENCES order_items(id) ON DELETE CASCADE,
+    ingredient_id INTEGER NOT NULL REFERENCES order_items(id),
+    quantity      INTEGER NOT NULL DEFAULT 1,
+    UNIQUE(product_id, ingredient_id)
+  );
 `);
 
 // Migrations idempotentes
@@ -99,13 +107,14 @@ if (count.c === 0) {
   ins.run('Crack',   30,  '#9C27B0');
 }
 
-// Produits commandables — upsert (insère si absent, met à jour la catégorie si manquante)
+// Produits commandables + matières premières — upsert idempotent
 const upsertItem = db.prepare(`
   INSERT INTO order_items (name, category) VALUES (?, ?)
   ON CONFLICT(name) DO UPDATE SET category = excluded.category WHERE order_items.category IS NULL
 `);
 db.transaction(() => {
   [
+    // Produits finis
     ['Sachet de Psilocybine',      'Psilocybine'],
     ['Caisse de Psilocybine',      'Psilocybine'],
     ['Gâteau spatial Psilocybine', 'Psilocybine'],
@@ -123,7 +132,47 @@ db.transaction(() => {
     ['Seringue de Krakenine',      'Krakenine'],
     ['Sachet de Virus-Z',          'Virus-Z'],
     ['Seringue de Virus-Z',        'Virus-Z'],
+    // Matières premières (ingrédients)
+    ['Psilocybine traitée',        'Matières premières'],
+    ['Zeed traitée',               'Matières premières'],
+    ['Pandoxine traitée',          'Matières premières'],
+    ['Krakenine traitée',          'Matières premières'],
+    ['Virus Z',                    'Matières premières'],
   ].forEach(([n, c]) => upsertItem.run(n, c));
+})();
+
+// Recettes — upsert idempotent par (product_id, ingredient_id)
+const upsertRecipe = db.prepare(`
+  INSERT INTO recipes (product_id, ingredient_id, quantity)
+  SELECT p.id, i.id, ?
+  FROM order_items p, order_items i
+  WHERE p.name = ? AND i.name = ?
+  ON CONFLICT(product_id, ingredient_id) DO UPDATE SET quantity = excluded.quantity
+`);
+db.transaction(() => {
+  [
+    // [quantité, nom_produit, nom_ingrédient]
+    [5,  'Sachet de Psilocybine',      'Psilocybine traitée'],
+    [20, 'Caisse de Psilocybine',      'Psilocybine traitée'],
+    [2,  'Gâteau spatial Psilocybine', 'Psilocybine traitée'],
+    [2,  'Patch reposant',             'Zeed traitée'],
+    [2,  'Patch reposant',             'Psilocybine traitée'],
+    [5,  'Sachet de Zeed',             'Zeed traitée'],
+    [20, 'Caisse de Zeed',             'Zeed traitée'],
+    [2,  'Joint de Zeed',              'Zeed traitée'],
+    [3,  'Sachet de Pandoxine',        'Pandoxine traitée'],
+    [12, 'Caisse de Pandoxine',        'Pandoxine traitée'],
+    [2,  'Cookies relaxant',           'Zeed traitée'],
+    [2,  'Cookies relaxant',           'Pandoxine traitée'],
+    [2,  'Cachet de Pandoxine',        'Pandoxine traitée'],
+    [2,  'Boisson apaisante',          'Zeed traitée'],
+    [2,  'Boisson apaisante',          'Krakenine traitée'],
+    [3,  'Sachet de Krakenine',        'Krakenine traitée'],
+    [12, 'Caisse de Krakenine',        'Krakenine traitée'],
+    [2,  'Seringue de Krakenine',      'Krakenine traitée'],
+    [5,  'Sachet de Virus-Z',          'Virus Z'],
+    [2,  'Seringue de Virus-Z',        'Virus Z'],
+  ].forEach(([qty, product, ingredient]) => upsertRecipe.run(qty, product, ingredient));
 })();
 
 module.exports = db;

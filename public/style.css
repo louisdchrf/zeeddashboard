@@ -822,3 +822,126 @@ nav { display: flex; gap: 4px; }
 .order-item-add-row input {
   flex: 1;
 }
+
+/* ── Recettes ──────────────────────────────────────────────────────────────── */
+
+.recipes-calc-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.9rem;
+  color: var(--text2);
+}
+
+.recipes-calc-row input {
+  width: 64px;
+  text-align: center;
+  padding: 4px 8px;
+}
+
+.recipes-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+  padding: 16px 0;
+}
+
+.recipe-group-title {
+  font-size: 0.75rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--text2);
+  margin: 0 0 10px 0;
+}
+
+.recipe-cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 10px;
+}
+
+.recipe-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 12px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  transition: border-color 0.15s;
+}
+
+.recipe-card.can-make {
+  border-color: rgba(63, 185, 80, 0.35);
+}
+
+.recipe-card.cannot-make {
+  border-color: rgba(248, 81, 73, 0.25);
+}
+
+.recipe-card-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.recipe-product-name {
+  font-weight: 600;
+  font-size: 0.9rem;
+}
+
+.recipe-feasibility {
+  font-size: 0.78rem;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.recipe-feasibility.feasible  { color: var(--green); }
+.recipe-feasibility.infeasible { color: var(--red, #f85149); }
+
+.recipe-ingredients {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.recipe-ingredient {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 0.82rem;
+  padding: 3px 0;
+  border-bottom: 1px solid var(--border);
+}
+
+.recipe-ingredient:last-child {
+  border-bottom: none;
+}
+
+.recipe-ing-name {
+  color: var(--text2);
+}
+
+.recipe-ingredient.missing .recipe-ing-name {
+  color: var(--fg);
+}
+
+.recipe-ing-qty {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-variant-numeric: tabular-nums;
+}
+
+.recipe-ing-qty .needed {
+  font-weight: 700;
+}
+
+.recipe-ing-qty .sep {
+  color: var(--text2);
+}
+
+.stock-ok  { color: var(--green); }
+.stock-low { color: var(--red, #f85149); }

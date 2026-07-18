@@ -592,6 +592,31 @@ setInterval(async () => {
   }
 }, 60_000);
 
+// ── Recettes ──────────────────────────────────────────────────────────────────
+
+app.get('/api/recipes', (_, res) => {
+  const products = db.prepare(`
+    SELECT oi.id, oi.name, oi.category
+    FROM order_items oi
+    WHERE EXISTS (SELECT 1 FROM recipes r WHERE r.product_id = oi.id)
+    ORDER BY oi.category, oi.name
+  `).all();
+
+  for (const p of products) {
+    p.ingredients = db.prepare(`
+      SELECT i.id, i.name, r.quantity,
+             COALESCE(inv.quantity, 0) AS stock
+      FROM recipes r
+      JOIN order_items i ON r.ingredient_id = i.id
+      LEFT JOIN inventory inv ON inv.item_id = i.id
+      WHERE r.product_id = ?
+      ORDER BY i.name
+    `).all(p.id);
+  }
+
+  res.json(products);
+});
+
 // ── Inventaire ────────────────────────────────────────────────────────────────
 
 app.get('/api/inventory', (_, res) => {

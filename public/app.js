@@ -108,6 +108,7 @@ function switchTab(tab) {
   if (tab === 'list')      renderList();
   if (tab === 'orders')    renderOrders();
   if (tab === 'inventory') renderInventory();
+  if (tab === 'recipes')   renderRecipes();
 }
 
 document.querySelectorAll('.tab-btn, .bnav-btn').forEach(btn =>
@@ -745,6 +746,75 @@ async function adjustInventory(itemId, direction) {
   if (el) el.textContent = r.quantity;
 }
 
+// ── Recettes ──────────────────────────────────────────────────────────────────
+let recipes = [];
+
+async function loadRecipes() {
+  recipes = await api.get('/api/recipes') || [];
+}
+
+function renderRecipes() {
+  const grid = document.getElementById('recipes-grid');
+  if (!grid) return;
+
+  const qty = parseInt(document.getElementById('recipe-qty')?.value) || 1;
+
+  if (recipes.length === 0) {
+    grid.innerHTML = '<p style="color:var(--text2);padding:24px">Aucune recette configurée.</p>';
+    return;
+  }
+
+  // Grouper par catégorie (ordre d'apparition)
+  const groups = {};
+  const groupOrder = [];
+  for (const r of recipes) {
+    const cat = r.category || 'Autres';
+    if (!groups[cat]) { groups[cat] = []; groupOrder.push(cat); }
+    groups[cat].push(r);
+  }
+
+  grid.innerHTML = groupOrder.map(cat => `
+    <div class="recipe-group">
+      <h3 class="recipe-group-title">${escapeHtml(cat)}</h3>
+      <div class="recipe-cards">
+        ${groups[cat].map(product => {
+          const canMakeArr = product.ingredients.map(ing => {
+            const needed = ing.quantity * qty;
+            return needed > 0 ? Math.floor(ing.stock / needed) : Infinity;
+          });
+          const canMake = canMakeArr.length ? Math.min(...canMakeArr) : 0;
+          const feasible = canMake >= 1;
+
+          const ingredientsHtml = product.ingredients.map(ing => {
+            const needed = ing.quantity * qty;
+            const ok = ing.stock >= needed;
+            return `<div class="recipe-ingredient ${ok ? 'ok' : 'missing'}">
+              <span class="recipe-ing-name">${escapeHtml(ing.name)}</span>
+              <span class="recipe-ing-qty">
+                <span class="needed">${needed}</span>
+                <span class="sep">/</span>
+                <span class="stock ${ok ? 'stock-ok' : 'stock-low'}">${ing.stock} en stock</span>
+              </span>
+            </div>`;
+          }).join('');
+
+          return `<div class="recipe-card ${feasible ? 'can-make' : 'cannot-make'}">
+            <div class="recipe-card-header">
+              <span class="recipe-product-name">${escapeHtml(product.name)}</span>
+              <span class="recipe-feasibility ${feasible ? 'feasible' : 'infeasible'}">
+                ${feasible ? `✅ Peut faire ${canMake}` : '❌ Stock insuffisant'}
+              </span>
+            </div>
+            <div class="recipe-ingredients">${ingredientsHtml}</div>
+          </div>`;
+        }).join('')}
+      </div>
+    </div>
+  `).join('');
+}
+
+document.getElementById('recipe-qty')?.addEventListener('input', () => renderRecipes());
+
 // ── Commandes ─────────────────────────────────────────────────────────────────
 let orderItems = [];
 let orders     = [];
@@ -985,5 +1055,6 @@ async function deleteOrderItem(id) {
   await loadOrders();
   await loadUsers();
   await loadInventory();
+  await loadRecipes();
   if (user.is_admin) await loadSettings();
 })();

@@ -64,6 +64,7 @@
     <button class="tab-btn active" data-tab="list">Plants actifs</button>
     <button class="tab-btn" data-tab="orders">Commandes</button>
     <button class="tab-btn" data-tab="inventory">Inventaire</button>
+    <button class="tab-btn" data-tab="recipes">Recettes</button>
     <button class="tab-btn tab-admin" data-tab="settings" style="display:none">Paramètres</button>
   </nav>
   <div class="user-info">
@@ -124,6 +125,19 @@
     </thead>
     <tbody id="list-body"></tbody>
   </table>
+</div>
+
+<!-- ── TAB: Recettes ── -->
+<div id="tab-recipes" class="tab-content">
+  <div class="section-header">
+    <h2>Recettes</h2>
+    <div class="recipes-calc-row">
+      <label for="recipe-qty">Calculer pour</label>
+      <input type="number" id="recipe-qty" value="1" min="1" max="999" style="width:64px;text-align:center"/>
+      <span>unité(s)</span>
+    </div>
+  </div>
+  <div id="recipes-grid" class="recipes-grid"></div>
 </div>
 
 <!-- ── TAB: Paramètres (admin seulement) ── -->
@@ -487,6 +501,10 @@
   <button class="bnav-btn" data-tab="inventory">
     <span class="bnav-icon">📋</span>
     <span class="bnav-label">Inventaire</span>
+  </button>
+  <button class="bnav-btn" data-tab="recipes">
+    <span class="bnav-icon">⚗️</span>
+    <span class="bnav-label">Recettes</span>
   </button>
   <button class="bnav-btn bnav-admin" data-tab="settings" style="display:none">
     <span class="bnav-icon">⚙️</span>
