@@ -820,6 +820,36 @@ app.patch('/api/users/me/notify', (req, res) => {
   res.json({ success: true, discord_notify: discord_notify ? 1 : 0 });
 });
 
+// ── Attribution stock par membre (set direct, pas delta) ─────────────────────
+
+app.put('/api/inventory/:itemId/stocks', (req, res) => {
+  const { stocks } = req.body;
+  if (!Array.isArray(stocks)) return res.status(400).json({ error: 'stocks requis' });
+  const item = db.prepare('SELECT id FROM order_items WHERE id=?').get(req.params.itemId);
+  if (!item) return res.status(404).json({ error: 'Article introuvable' });
+
+  const upsert     = db.prepare(`
+    INSERT INTO inventory_stock (item_id, user_id, quantity, updated_at)
+    VALUES (?, ?, ?, datetime('now'))
+    ON CONFLICT(item_id, user_id) DO UPDATE SET quantity=excluded.quantity, updated_at=excluded.updated_at
+  `);
+  const getOld     = db.prepare('SELECT quantity FROM inventory_stock WHERE item_id=? AND user_id=?');
+  const insMov     = db.prepare(`INSERT INTO stock_movements (item_id, user_id, delta, qty_after, created_at) VALUES (?, ?, ?, ?, datetime('now'))`);
+
+  db.transaction(() => {
+    for (const { user_id, quantity } of stocks) {
+      const qty   = Math.max(0, parseInt(quantity) || 0);
+      const old   = getOld.get(req.params.itemId, user_id);
+      const delta = qty - (old?.quantity || 0);
+      if (delta !== 0) insMov.run(req.params.itemId, user_id, delta, qty);
+      upsert.run(req.params.itemId, user_id, qty);
+    }
+  })();
+
+  broadcast('inventory:changed', {});
+  res.json({ success: true });
+});
+
 // ── Mouvements de stock ───────────────────────────────────────────────────────
 
 app.get('/api/inventory/:itemId/movements', (req, res) => {

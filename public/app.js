@@ -797,16 +797,17 @@ function renderInventory() {
       `<span class="inv-user-stock${s.user_id === currentUser?.id ? ' inv-user-own' : ''}">${escapeHtml(s.username)}&thinsp;<b>${s.quantity}</b></span>`
     ).join('');
 
+    const stopProp = `event.stopPropagation();`;
     return `
-      <div class="inv-item${isFav ? ' inv-item-fav' : ''}" data-id="${item.id}">
+      <div class="inv-item${isFav ? ' inv-item-fav' : ''}" data-id="${item.id}" onclick="openStocksModal(${item.id})" style="cursor:pointer">
         <div class="inv-item-header">
           <div class="inv-item-name">${escapeHtml(item.name)}</div>
-          <button class="inv-fav-btn${isFav ? ' active' : ''}" onclick="toggleFavorite(${item.id})" title="${isFav ? 'Retirer des favoris' : 'Ajouter aux favoris'}">★</button>
+          <button class="inv-fav-btn${isFav ? ' active' : ''}" onclick="${stopProp}toggleFavorite(${item.id})" title="${isFav ? 'Retirer des favoris' : 'Ajouter aux favoris'}">★</button>
         </div>
         <div class="inv-item-qty ${item.total_quantity > 0 ? 'qty-positive' : 'qty-zero'}" id="inv-total-${item.id}">${item.total_quantity}</div>
         <div class="inv-breakdown" id="inv-breakdown-${item.id}">${breakdown}</div>
         ${item.location ? `<div class="inv-item-location">📍 ${escapeHtml(item.location)}</div>` : ''}
-        <div class="inv-item-controls">
+        <div class="inv-item-controls" onclick="${stopProp}">
           <button class="inv-btn inv-minus" onclick="adjustInventory(${item.id}, -1)">−</button>
           <input class="inv-adj" type="number" id="inv-adj-${item.id}" value="1" min="1" max="999"/>
           <button class="inv-btn inv-plus" onclick="adjustInventory(${item.id}, +1)">+</button>
@@ -1406,6 +1407,59 @@ async function deleteOrderItem(id) {
   renderOrderItemsList();
   populateOrderItemSelect();
 }
+
+// ── Modal : attribution du stock par membre ───────────────────────────────────
+
+function openStocksModal(itemId) {
+  const item = inventory.find(i => i.id === itemId);
+  if (!item) return;
+
+  document.getElementById('inv-stocks-title').textContent = escapeHtml(item.name);
+  document.getElementById('inv-stocks-item-id').value = itemId;
+
+  const stockMap = {};
+  for (const s of (item.stocks || [])) stockMap[s.user_id] = s.quantity;
+
+  const rows = document.getElementById('inv-stocks-rows');
+  rows.innerHTML = allUsers.map(u => `
+    <div class="inv-stocks-row">
+      <label class="inv-stocks-label">
+        ${u.avatar ? `<img src="https://cdn.discordapp.com/avatars/${u.discord_id}/${u.avatar}.png" class="inv-stocks-avatar"/>` : '<span class="inv-stocks-avatar-placeholder"></span>'}
+        ${escapeHtml(u.username)}
+      </label>
+      <input type="number" class="inv-stocks-qty" data-user-id="${u.id}"
+             value="${stockMap[u.id] || 0}" min="0" max="9999"
+             oninput="updateInvStocksTotal()"/>
+    </div>
+  `).join('');
+
+  updateInvStocksTotal();
+  document.getElementById('modal-inv-stocks').style.display = 'flex';
+}
+
+function updateInvStocksTotal() {
+  const inputs = document.querySelectorAll('.inv-stocks-qty');
+  const total = [...inputs].reduce((sum, el) => sum + (parseInt(el.value) || 0), 0);
+  document.getElementById('inv-stocks-total-val').textContent = total;
+}
+
+document.getElementById('cancel-inv-stocks').addEventListener('click', () => {
+  document.getElementById('modal-inv-stocks').style.display = 'none';
+});
+
+document.getElementById('confirm-inv-stocks').addEventListener('click', async () => {
+  const itemId = document.getElementById('inv-stocks-item-id').value;
+  const inputs = document.querySelectorAll('.inv-stocks-qty');
+  const stocks = [...inputs].map(el => ({
+    user_id:  parseInt(el.dataset.userId),
+    quantity: parseInt(el.value) || 0,
+  }));
+  const r = await api.put(`/api/inventory/${itemId}/stocks`, { stocks });
+  if (r?.error) return alert(r.error);
+  document.getElementById('modal-inv-stocks').style.display = 'none';
+  await loadInventory();
+  renderInventory();
+});
 
 // ── Mouvements de stock ───────────────────────────────────────────────────────
 

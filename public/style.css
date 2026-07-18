@@ -1537,6 +1537,73 @@ nav { display: flex; gap: 2px; }
   color: var(--text2);
 }
 
+/* ── Modal attribution stock ── */
+.inv-stocks-hint {
+  font-size: 0.82rem;
+  color: var(--text2);
+  margin: -4px 0 14px;
+}
+.inv-stocks-rows {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  max-height: 340px;
+  overflow-y: auto;
+  margin-bottom: 12px;
+}
+.inv-stocks-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 6px 8px;
+  background: var(--bg2);
+  border-radius: var(--r-sm);
+}
+.inv-stocks-label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.85rem;
+  color: var(--text);
+  flex: 1;
+}
+.inv-stocks-avatar {
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  object-fit: cover;
+}
+.inv-stocks-avatar-placeholder {
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  background: var(--border);
+  display: inline-block;
+  flex-shrink: 0;
+}
+.inv-stocks-qty {
+  width: 72px;
+  background: var(--bg3);
+  border: 1px solid var(--border);
+  color: var(--text);
+  border-radius: var(--r-sm);
+  padding: 4px 8px;
+  font-size: 0.9rem;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+}
+.inv-stocks-qty:focus { outline: none; border-color: var(--accent); }
+.inv-stocks-total {
+  font-size: 0.85rem;
+  color: var(--text2);
+  text-align: right;
+  padding: 4px 8px;
+  border-top: 1px solid var(--border);
+  margin-bottom: 4px;
+}
+.inv-stocks-total strong { color: var(--text); font-size: 1rem; }
+
 /* ── Historique de stock ── */
 .inv-history-btn {
   display: block;

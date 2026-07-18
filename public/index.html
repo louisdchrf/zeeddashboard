@@ -564,6 +564,21 @@
   </div>
 </div>
 
+<!-- ── Modal: Attribution du stock par membre ── -->
+<div class="modal-overlay" id="modal-inv-stocks">
+  <div class="modal-box" style="max-width:420px">
+    <h2 id="inv-stocks-title">Attribuer le stock</h2>
+    <input type="hidden" id="inv-stocks-item-id"/>
+    <p class="inv-stocks-hint">Indique combien chaque membre possède de cet article.</p>
+    <div id="inv-stocks-rows" class="inv-stocks-rows"></div>
+    <div class="inv-stocks-total">Total : <strong id="inv-stocks-total-val">0</strong></div>
+    <div class="modal-footer">
+      <button class="btn-cancel" id="cancel-inv-stocks">Annuler</button>
+      <button class="btn-confirm" id="confirm-inv-stocks">Enregistrer</button>
+    </div>
+  </div>
+</div>
+
 <!-- ── Modal: Mouvements de stock ── -->
 <div class="modal-overlay" id="modal-movements">
   <div class="modal-box" style="max-width:480px">
