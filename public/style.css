@@ -214,6 +214,7 @@ nav { display: flex; gap: 4px; }
 .tab-content.active { display: flex; flex-direction: column; }
 
 /* ── Map ── */
+#tab-map { position: relative; }
 #map { flex: 1; background: #1a1a1a; }
 
 #map-hint {
