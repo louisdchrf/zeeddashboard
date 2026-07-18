@@ -1415,7 +1415,7 @@ function openStocksModal(itemId) {
   for (const s of (item.stocks || [])) stockMap[s.user_id] = s.quantity;
 
   const rows = document.getElementById('inv-stocks-rows');
-  const members = allUsers.filter(u => !u.is_admin);
+  const members = allUsers.filter(u => !u.is_admin && u.discord_id !== '__admin__' && u.discord_id !== 'local');
   rows.innerHTML = members.map(u => `
     <div class="inv-stocks-row">
       <label class="inv-stocks-label">
