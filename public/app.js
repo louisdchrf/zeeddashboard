@@ -173,6 +173,8 @@ async function checkAuth() {
     const err = params.get('error');
     if (err === 'not_in_guild') {
       showLoginError('Accès refusé — tu n\'es pas membre du serveur Discord requis.');
+    } else if (err === 'banned') {
+      showLoginError('Accès révoqué — ton compte a été banni par un administrateur.');
     } else if (err) {
       showLoginError('Connexion Discord échouée. Vérifie la configuration dans les Paramètres admin.');
     }
