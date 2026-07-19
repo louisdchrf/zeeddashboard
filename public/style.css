@@ -530,15 +530,23 @@ nav { display: flex; gap: 2px; }
 
 .settings-wrap {
   padding: 24px;
-  max-width: 560px;
+  max-width: 1100px;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+  align-items: start;
 }
-
+.settings-wrap .section-header {
+  grid-column: 1 / -1;
+}
 .settings-section {
   background: var(--bg2);
   border: 1px solid var(--border);
   border-radius: var(--r-md);
   padding: 20px;
-  margin-bottom: 16px;
+}
+.settings-section--full {
+  grid-column: 1 / -1;
 }
 
 .settings-section h3 {
@@ -776,7 +784,7 @@ nav { display: flex; gap: 2px; }
     overflow-y: auto;
   }
 
-  .settings-wrap { padding: 16px; }
+  .settings-wrap { padding: 16px; grid-template-columns: 1fr; }
 }
 
 /* ── Inventaire ── */
@@ -2103,7 +2111,7 @@ nav { display: flex; gap: 2px; }
 /* ── User management ─────────────────────────────────────────────────────── */
 .users-list-header {
   display: grid;
-  grid-template-columns: 1fr 90px 70px 70px 140px;
+  grid-template-columns: 1fr 120px 90px 70px 70px 140px;
   gap: 8px;
   padding: 6px 10px;
   font-size: 11px;
@@ -2116,7 +2124,7 @@ nav { display: flex; gap: 2px; }
 }
 .user-row {
   display: grid;
-  grid-template-columns: 1fr 90px 70px 70px 140px;
+  grid-template-columns: 1fr 120px 90px 70px 70px 140px;
   gap: 8px;
   align-items: center;
   padding: 8px 10px;
@@ -2125,7 +2133,7 @@ nav { display: flex; gap: 2px; }
 }
 .user-row:hover { background: var(--bg-hover, rgba(255,255,255,.04)); }
 .user-row.banned { opacity: .5; }
-.user-info { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.user-info { display: flex; align-items: center; gap: 8px; min-width: 0; overflow: hidden; }
 .user-avatar {
   width: 28px; height: 28px; border-radius: 50%;
   object-fit: cover; flex-shrink: 0;
@@ -2138,6 +2146,7 @@ nav { display: flex; gap: 2px; }
   font-size: 12px; font-weight: 700; flex-shrink: 0;
 }
 .user-name { font-size: 13px; font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.user-badges { display: flex; gap: 4px; flex-wrap: wrap; }
 .user-badge {
   font-size: 10px; padding: 2px 6px; border-radius: 4px; font-weight: 600; white-space: nowrap;
 }

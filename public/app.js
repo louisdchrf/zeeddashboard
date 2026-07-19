@@ -1826,8 +1826,8 @@ async function loadAdminUsers() {
       <div class="user-info">
         ${avatarEl}
         <span class="user-name">${u.username}</span>
-        ${adminBadge}${bannedBadge}
       </div>
+      <div class="user-badges">${adminBadge}${bannedBadge}</div>
       <div>${typeBadge}</div>
       <div class="user-stat">${u.order_count}</div>
       <div class="user-stat">${u.plant_count}</div>
