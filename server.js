@@ -740,6 +740,25 @@ app.get('/api/stats', (_, res) => {
 
 // ── Recettes ──────────────────────────────────────────────────────────────────
 
+
+app.get('/api/stats/sales', requireAuth, (_, res) => {
+  const rows = db.prepare(`
+    SELECT oi.id, oi.name, oi.category,
+      SUM(ol.quantity)    AS total_qty,
+      SUM(ol.sale_price)  AS total_revenue,
+      COUNT(*)            AS nb_lines,
+      ROUND(CAST(SUM(ol.sale_price) AS REAL) / NULLIF(SUM(ol.quantity), 0), 0) AS avg_price_per_unit,
+      ROUND(CAST(MIN(ol.sale_price) AS REAL) / NULLIF(ol.quantity, 0), 0)       AS min_price_per_unit,
+      ROUND(CAST(MAX(ol.sale_price) AS REAL) / NULLIF(ol.quantity, 0), 0)       AS max_price_per_unit
+    FROM order_lines ol
+    JOIN order_items oi ON ol.item_id = oi.id
+    WHERE ol.status = 'done' AND ol.sale_price IS NOT NULL AND ol.sale_price > 0
+    GROUP BY ol.item_id
+    ORDER BY total_revenue DESC
+  `).all();
+  res.json(rows);
+});
+
 app.get('/api/recipes', (_, res) => {
   const products = db.prepare(`
     SELECT oi.id, oi.name, oi.category

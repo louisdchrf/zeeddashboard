@@ -1999,7 +1999,7 @@ nav { display: flex; gap: 2px; }
 .sales-table-header,
 .sales-table-row {
   display: grid;
-  grid-template-columns: 1fr 70px 90px 200px;
+  grid-template-columns: 1fr 55px 75px 75px 75px 110px;
   gap: 8px;
   align-items: center;
   padding: 6px 4px;

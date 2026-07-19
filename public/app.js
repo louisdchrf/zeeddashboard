@@ -962,6 +962,38 @@ async function loadAndRenderStats() {
     }).join('')}</div>`;
   }
 
+  // Ventes par article
+  const salesData = await api.get('/api/stats/sales');
+  const salesEl = document.getElementById('stats-sales');
+  if (salesEl) {
+    if (!salesData || salesData.length === 0) {
+      salesEl.innerHTML = '<p class="empty-state">Aucune vente enregistrée</p>';
+    } else {
+      salesEl.innerHTML = `
+        <div class="sales-table-header">
+          <span>Article</span>
+          <span style="text-align:right">Vendus</span>
+          <span style="text-align:right">Min/u</span>
+          <span style="text-align:right">Moy/u</span>
+          <span style="text-align:right">Max/u</span>
+          <span style="text-align:right">Revenu total</span>
+        </div>
+        ${salesData.map(r => `
+          <div class="sales-table-row">
+            <span class="sales-name">${escapeHtml(r.name)}</span>
+            <span class="sales-qty">${r.total_qty}</span>
+            <span class="sales-avg" style="color:var(--text2)">$${Number(r.min_price_per_unit||0).toLocaleString('fr-FR')}</span>
+            <span class="sales-avg">$${Number(r.avg_price_per_unit||0).toLocaleString('fr-FR')}</span>
+            <span class="sales-avg" style="color:var(--green)">$${Number(r.max_price_per_unit||0).toLocaleString('fr-FR')}</span>
+            <div class="sales-rev-cell">
+              <span class="sales-rev">$${Number(r.total_revenue||0).toLocaleString('fr-FR')}</span>
+            </div>
+          </div>
+        `).join('')}
+      `;
+    }
+  }
+
   // Feed récent
   document.getElementById('stats-feed').innerHTML = data.recentFeed.length === 0
     ? '<p class="empty-state">Aucune récolte enregistrée</p>'
