@@ -1197,12 +1197,17 @@ function createLineRow(idx, l = null) {
 
 let _lineIdx = 0;
 
-function setOrderLines(lines = []) {
+function setOrderLines(lines = [], defaultCount = 5) {
   const container = document.getElementById('o-lines-container');
   container.innerHTML = '';
   _lineIdx = 0;
-  const toRender = lines.length > 0 ? lines : [null];
-  for (const l of toRender) container.appendChild(createLineRow(_lineIdx++, l));
+  if (lines.length > 0) {
+    for (const l of lines) container.appendChild(createLineRow(_lineIdx++, l));
+    // Compléter jusqu'à defaultCount si moins de lignes existantes
+    while (_lineIdx < defaultCount) container.appendChild(createLineRow(_lineIdx++));
+  } else {
+    for (let i = 0; i < defaultCount; i++) container.appendChild(createLineRow(_lineIdx++));
+  }
 }
 
 function addOrderLine() {
