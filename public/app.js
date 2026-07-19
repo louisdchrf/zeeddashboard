@@ -1797,11 +1797,14 @@ async function loadAdminUsers() {
 
   wrap.innerHTML = users.map(u => {
     const isLocal   = u.discord_id === '__admin__';
-    const avatarUrl = u.avatar
+    const isRealDiscord = u.discord_id && u.discord_id !== '__admin__' && u.discord_id !== 'local';
+    const avatarUrl = u.avatar && isRealDiscord
       ? `https://cdn.discordapp.com/avatars/${u.discord_id}/${u.avatar}.png?size=64`
-      : null;
+      : isRealDiscord
+        ? `https://cdn.discordapp.com/embed/avatars/${Number(BigInt(u.discord_id) >> 22n) % 6}.png`
+        : null;
     const avatarEl  = avatarUrl
-      ? `<img class="user-avatar" src="${avatarUrl}" alt="">`
+      ? `<img class="user-avatar" src="${avatarUrl}" alt="" onerror="this.style.display='none'">`
       : `<div class="user-avatar-placeholder">${u.username.charAt(0).toUpperCase()}</div>`;
     const typeBadge = isLocal
       ? `<span class="user-badge local">Local</span>`
@@ -1825,10 +1828,11 @@ async function loadAdminUsers() {
     return `<div class="user-row${u.banned ? ' banned' : ''}" data-uid="${u.id}">
       <div class="user-info">
         ${avatarEl}
-        <span class="user-name">${u.username}</span>
+        <div class="user-info-text">
+          <span class="user-name">${u.username}</span>
+          <div class="user-badges">${typeBadge}${adminBadge}${bannedBadge}</div>
+        </div>
       </div>
-      <div class="user-badges">${adminBadge}${bannedBadge}</div>
-      <div>${typeBadge}</div>
       <div class="user-stat">${u.order_count}</div>
       <div class="user-stat">${u.plant_count}</div>
       <div class="user-actions">${banBtn}${adminBtn}${delBtn}</div>
