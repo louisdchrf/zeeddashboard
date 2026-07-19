@@ -111,6 +111,8 @@ try { db.exec(`ALTER TABLE order_items ADD COLUMN location TEXT DEFAULT NULL`); 
 try { db.exec(`ALTER TABLE users ADD COLUMN discord_notify INTEGER DEFAULT 1`); } catch (_) {}
 try { db.exec(`ALTER TABLE orders ADD COLUMN sale_price INTEGER DEFAULT NULL`); } catch (_) {}
 try { db.exec(`ALTER TABLE inventory_stock ADD COLUMN updated_by INTEGER REFERENCES users(id)`); } catch (_) {}
+try { db.exec(`ALTER TABLE order_lines ADD COLUMN status TEXT NOT NULL DEFAULT 'pending'`); } catch (_) {}
+try { db.exec(`ALTER TABLE order_lines ADD COLUMN sale_price INTEGER DEFAULT NULL`); } catch (_) {}
 
 // Rendre orders.item_id nullable (migration SQLite via recréation)
 {

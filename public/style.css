@@ -1967,3 +1967,30 @@ nav { display: flex; gap: 2px; }
 }
 .o-ing-name { color: var(--text); }
 .o-ing-qty  { color: var(--accent); font-weight: 600; }
+
+/* ── Modal large (contrats) ─────────────────────────────────────────────────── */
+.modal-box-wide { width: 640px; }
+
+/* ── Statut et prix par ligne ───────────────────────────────────────────────── */
+.o-line-status {
+  flex: 0 0 130px;
+  background: var(--bg2);
+  border: 1px solid var(--border);
+  color: var(--text);
+  border-radius: var(--r-sm);
+  padding: 5px 6px;
+  font-size: 0.78rem;
+  color-scheme: dark;
+}
+.o-line-status:focus { outline: none; border-color: var(--accent); }
+.o-line-price {
+  flex: 0 0 72px;
+  background: var(--bg2);
+  border: 1px solid var(--border);
+  color: var(--text);
+  border-radius: var(--r-sm);
+  padding: 5px 8px;
+  font-size: 0.82rem;
+  text-align: right;
+}
+.o-line-price:focus { outline: none; border-color: var(--green); border-width: 2px; }

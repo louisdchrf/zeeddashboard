@@ -1186,23 +1186,41 @@ function populateAllLineSelects() {
 
 function setOrderLines(lines = []) {
   for (let i = 0; i < 5; i++) {
-    const sel = document.querySelector(`.o-line-item[data-idx="${i}"]`);
-    const qty = document.querySelector(`.o-line-qty[data-idx="${i}"]`);
+    const sel    = document.querySelector(`.o-line-item[data-idx="${i}"]`);
+    const qty    = document.querySelector(`.o-line-qty[data-idx="${i}"]`);
+    const status = document.querySelector(`.o-line-status[data-idx="${i}"]`);
+    const price  = document.querySelector(`.o-line-price[data-idx="${i}"]`);
     const l = lines[i] || null;
-    if (sel) sel.value = l?.item_id || '';
-    if (qty) qty.value = l?.quantity ?? 1;
+    if (sel)    sel.value    = l?.item_id || '';
+    if (qty)    qty.value    = l?.quantity ?? 1;
+    if (status) status.value = l?.status || 'pending';
+    if (price) {
+      price.value = l?.sale_price ?? '';
+      price.style.display = (l?.status === 'done') ? '' : 'none';
+    }
   }
 }
 
 function getOrderLines() {
   const lines = [];
   for (let i = 0; i < 5; i++) {
-    const sel = document.querySelector(`.o-line-item[data-idx="${i}"]`);
-    const qty = document.querySelector(`.o-line-qty[data-idx="${i}"]`);
+    const sel    = document.querySelector(`.o-line-item[data-idx="${i}"]`);
+    const qty    = document.querySelector(`.o-line-qty[data-idx="${i}"]`);
+    const status = document.querySelector(`.o-line-status[data-idx="${i}"]`);
+    const price  = document.querySelector(`.o-line-price[data-idx="${i}"]`);
     const item_id = parseInt(sel?.value);
-    if (item_id) lines.push({ item_id, quantity: parseInt(qty?.value) || 1 });
+    if (!item_id) continue;
+    const ls = status?.value || 'pending';
+    const lp = ls === 'done' && price?.value !== '' ? (parseInt(price.value) || null) : null;
+    lines.push({ item_id, quantity: parseInt(qty?.value) || 1, status: ls, sale_price: lp });
   }
   return lines;
+}
+
+function onLineStatusChange(selectEl) {
+  const idx   = selectEl.dataset.idx;
+  const price = document.querySelector(`.o-line-price[data-idx="${idx}"]`);
+  if (price) price.style.display = selectEl.value === 'done' ? '' : 'none';
 }
 
 function updateContractIngredientsPreview() {

@@ -940,7 +940,7 @@ app.get('/api/orders', (_, res) => {
     ORDER BY o.created_at DESC
   `).all();
   const linesStmt = db.prepare(`
-    SELECT ol.id, ol.item_id, ol.quantity, oi.name AS item_name
+    SELECT ol.id, ol.item_id, ol.quantity, ol.status, ol.sale_price, oi.name AS item_name
     FROM order_lines ol JOIN order_items oi ON ol.item_id = oi.id
     WHERE ol.order_id = ? ORDER BY ol.id
   `);
@@ -979,9 +979,10 @@ app.post('/api/orders', async (req, res) => {
     .run(deadline || null, req.session.userId, client || null);
   const orderId = r.lastInsertRowid;
 
-  const insLine   = db.prepare('INSERT INTO order_lines (order_id, item_id, quantity) VALUES (?, ?, ?)');
+  const insLine   = db.prepare('INSERT INTO order_lines (order_id, item_id, quantity, status, sale_price) VALUES (?, ?, ?, ?, ?)');
   const insAssign = db.prepare('INSERT OR IGNORE INTO order_assignments (order_id, user_id) VALUES (?, ?)');
-  for (const { item_id, quantity } of validLines) insLine.run(orderId, parseInt(item_id), Math.max(1, parseInt(quantity) || 1));
+  for (const { item_id, quantity, status: ls = 'pending', sale_price: lp = null } of validLines)
+    insLine.run(orderId, parseInt(item_id), Math.max(1, parseInt(quantity) || 1), ls, lp != null ? parseInt(lp) : null);
   for (const uid of user_ids) insAssign.run(orderId, uid);
 
   // Log création
@@ -1033,8 +1034,9 @@ app.put('/api/orders/:id', (req, res) => {
   if (Array.isArray(lines)) {
     const validLines = lines.filter(l => l.item_id && parseInt(l.item_id)).slice(0, 5);
     db.prepare('DELETE FROM order_lines WHERE order_id=?').run(req.params.id);
-    const insLine = db.prepare('INSERT INTO order_lines (order_id, item_id, quantity) VALUES (?, ?, ?)');
-    for (const { item_id, quantity } of validLines) insLine.run(req.params.id, parseInt(item_id), Math.max(1, parseInt(quantity) || 1));
+    const insLine = db.prepare('INSERT INTO order_lines (order_id, item_id, quantity, status, sale_price) VALUES (?, ?, ?, ?, ?)');
+    for (const { item_id, quantity, status: ls = 'pending', sale_price: lp = null } of validLines)
+      insLine.run(req.params.id, parseInt(item_id), Math.max(1, parseInt(quantity) || 1), ls, lp != null ? parseInt(lp) : null);
   }
   if (Array.isArray(user_ids)) {
     db.prepare('DELETE FROM order_assignments WHERE order_id=?').run(req.params.id);
