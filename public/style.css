@@ -1884,8 +1884,8 @@ nav { display: flex; gap: 2px; }
 }
 .o-line-item:focus { outline: none; border-color: var(--accent); }
 .o-line-qty {
-  flex: 0 0 60px;
-  width: 60px;
+  flex: 0 0 80px;
+  width: 80px;
   background: var(--bg2);
   border: 1px solid var(--border);
   color: var(--text);
