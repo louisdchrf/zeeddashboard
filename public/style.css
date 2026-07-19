@@ -2036,3 +2036,7 @@ nav { display: flex; gap: 2px; }
   border-radius: 3px;
   transition: width .4s ease;
 }
+
+#tab-inventory { padding: 24px; overflow-y: auto; }
+#tab-recipes   { padding: 24px; overflow-y: auto; }
+#tab-stats     { padding: 24px; overflow-y: auto; }
