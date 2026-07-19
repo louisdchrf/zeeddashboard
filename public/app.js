@@ -280,6 +280,14 @@ async function loadSettings() {
   const notifEnabled = data.discord_notif_enabled !== '0';
   const notifCb = document.getElementById('s-discord-notif-enabled');
   if (notifCb) { notifCb.checked = notifEnabled; onDiscordNotifEnabledChange(); }
+  // Backup settings
+  const autoCb = document.getElementById('s-backup-auto');
+  if (autoCb) { autoCb.checked = data.backup_auto_enabled === '1'; onBackupAutoChange(); }
+  const freq = document.getElementById('s-backup-frequency');
+  if (freq) freq.value = data.backup_frequency || 'daily';
+  const keep = document.getElementById('s-backup-keep');
+  if (keep) keep.value = data.backup_keep || '10';
+  loadBackupList();
 }
 
 function populateMerchSelect() {
@@ -1718,23 +1726,7 @@ async function deleteBackup(name) {
   loadBackupList();
 }
 
-// Charger les settings backup dans loadSettings
-const _origLoadSettings = loadSettings;
-async function loadSettings() {
-  await _origLoadSettings();
-  const data = await api.get('/api/settings');
-  if (!data) return;
-  const autoCb = document.getElementById('s-backup-auto');
-  if (autoCb) {
-    autoCb.checked = data.backup_auto_enabled === '1';
-    onBackupAutoChange();
-  }
-  const freq = document.getElementById('s-backup-frequency');
-  if (freq) freq.value = data.backup_frequency || 'daily';
-  const keep = document.getElementById('s-backup-keep');
-  if (keep) keep.value = data.backup_keep || '10';
-  loadBackupList();
-}
+// (backup settings chargés dans loadSettings)
 
 document.getElementById('btn-backup-now')?.addEventListener('click', async () => {
   const btn = document.getElementById('btn-backup-now');

@@ -513,9 +513,9 @@ function getOrderItemsStr(orderId) {
   return lines.map(l => `${l.name} ×${l.quantity}`).join('\n') || '—';
 }
 
-async function patchOrderMessage(orderId, token, channelId) {
+async function patchOrderMessage(orderId, token, channelId, createIfMissing = false) {
   const order = db.prepare('SELECT * FROM orders WHERE id=?').get(orderId);
-  if (!order?.discord_message_id || !channelId) return;
+  if (!order || !channelId) return;
 
   const assignees = db.prepare(`
     SELECT u.username FROM order_assignments oa JOIN users u ON oa.user_id = u.id WHERE oa.order_id = ?
@@ -523,10 +523,19 @@ async function patchOrderMessage(orderId, token, channelId) {
   const deadlineStr   = order.deadline ? new Date(order.deadline).toLocaleDateString('fr-FR') : 'Non définie';
   const assigneeNames = assignees.map(u => u.username).join(', ') || '—';
   const itemsStr      = getOrderItemsStr(orderId);
+  const embed         = buildOrderEmbed(orderId, itemsStr, order.status, assigneeNames, deadlineStr, order.client);
 
-  const embed = buildOrderEmbed(orderId, itemsStr, order.status, assigneeNames, deadlineStr, order.client);
   try {
-    await botPatch(`/channels/${channelId}/messages/${order.discord_message_id}`, embed, token);
+    if (order.discord_message_id) {
+      await botPatch(`/channels/${channelId}/messages/${order.discord_message_id}`, embed, token);
+    } else if (createIfMissing) {
+      // Pas encore de message Discord pour cette commande — on en crée un
+      const r = await botPost(`/channels/${channelId}/messages`, embed, token);
+      if (r.ok) {
+        const data = await r.json();
+        if (data.id) db.prepare('UPDATE orders SET discord_message_id=? WHERE id=?').run(data.id, orderId);
+      }
+    }
   } catch (e) {
     console.error('patchOrderMessage error:', e.message);
   }
@@ -665,7 +674,7 @@ async function getDmChannelId(discordId, token) {
 
 setInterval(async () => {
   const token = getSetting('discord_bot_token');
-  if (!token) return;
+  if (!token || !discordNotifEnabled()) return;
 
   const notifyChannelId = getSetting('discord_notify_channel_id');
 
@@ -1005,7 +1014,6 @@ app.post('/api/orders', async (req, res) => {
   const { lines = [], deadline, user_ids = [], client } = req.body;
   const validLines = (Array.isArray(lines) ? lines : []).filter(l => l.item_id && parseInt(l.item_id));
   if (validLines.length === 0) return res.status(400).json({ error: 'Au moins 1 article requis' });
-  if (validLines.length > 5)   return res.status(400).json({ error: '5 articles maximum' });
   if (!Array.isArray(user_ids) || user_ids.length === 0)
     return res.status(400).json({ error: 'Assigne le contrat à au moins une personne' });
 
@@ -1026,7 +1034,7 @@ app.post('/api/orders', async (req, res) => {
   // Notification Discord
   const token     = getSetting('discord_bot_token');
   const channelId = getSetting('discord_orders_channel_id') || getSetting('discord_notify_channel_id');
-  if (token && channelId) {
+  if (token && channelId && discordNotifEnabled()) {
     try {
       const assignees = db.prepare(`
         SELECT u.username, u.discord_id, COALESCE(u.discord_notify, 1) AS discord_notify
@@ -1099,8 +1107,8 @@ app.put('/api/orders/:id', (req, res) => {
   // Patch du message Discord si le statut a changé
   const token     = getSetting('discord_bot_token');
   const channelId = getSetting('discord_orders_channel_id') || getSetting('discord_notify_channel_id');
-  if (token && channelId && newStatus !== order.status && getSetting('discord_notif_enabled') !== '0') {
-    if (discordNotifEnabled()) patchOrderMessage(req.params.id, token, channelId).catch(() => {});
+  if (token && channelId && newStatus !== order.status && discordNotifEnabled()) {
+    patchOrderMessage(req.params.id, token, channelId, true).catch(() => {});
   }
 
   res.json({ success: true });
@@ -1127,8 +1135,8 @@ app.patch('/api/orders/:id/status', async (req, res) => {
   // Patch message Discord
   const token     = getSetting('discord_bot_token');
   const channelId = getSetting('discord_orders_channel_id') || getSetting('discord_notify_channel_id');
-  if (token && channelId && order.discord_message_id) {
-    if (discordNotifEnabled()) patchOrderMessage(req.params.id, token, channelId).catch(() => {});
+  if (token && channelId && discordNotifEnabled()) {
+    patchOrderMessage(req.params.id, token, channelId, false).catch(() => {});
   }
 
   res.json({ success: true });
