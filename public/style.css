@@ -1994,3 +1994,29 @@ nav { display: flex; gap: 2px; }
   text-align: right;
 }
 .o-line-price:focus { outline: none; border-color: var(--green); border-width: 2px; }
+
+/* ── Tableau ventes par article (Stats) ─────────────────────────────────────── */
+.sales-table-header,
+.sales-table-row {
+  display: grid;
+  grid-template-columns: 1fr 70px 90px 200px;
+  gap: 8px;
+  align-items: center;
+  padding: 6px 4px;
+  font-size: 0.82rem;
+}
+.sales-table-header {
+  color: var(--text2);
+  font-size: 0.72rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: .05em;
+  border-bottom: 1px solid var(--border);
+  margin-bottom: 4px;
+}
+.sales-table-row:hover { background: var(--bg3); border-radius: var(--r-sm); }
+.sales-name { color: var(--text); font-weight: 500; }
+.sales-qty  { color: var(--text2); text-align: right; }
+.sales-avg  { color: var(--blue); text-align: right; font-weight: 600; }
+.sales-rev-cell { display: flex; align-items: center; gap: 8px; }
+.sales-rev  { color: var(--green); font-weight: 700; white-space: nowrap; min-width: 70px; text-align: right; }
