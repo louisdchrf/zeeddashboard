@@ -112,6 +112,32 @@ try { db.exec(`ALTER TABLE users ADD COLUMN discord_notify INTEGER DEFAULT 1`); 
 try { db.exec(`ALTER TABLE orders ADD COLUMN sale_price INTEGER DEFAULT NULL`); } catch (_) {}
 try { db.exec(`ALTER TABLE inventory_stock ADD COLUMN updated_by INTEGER REFERENCES users(id)`); } catch (_) {}
 
+// Rendre orders.item_id nullable (migration SQLite via recréation)
+{
+  const col = db.prepare(`PRAGMA table_info(orders)`).all().find(c => c.name === 'item_id');
+  if (col && col.notnull === 1) {
+    db.exec(`
+      PRAGMA foreign_keys = OFF;
+      CREATE TABLE IF NOT EXISTS orders_new (
+        id                 INTEGER PRIMARY KEY AUTOINCREMENT,
+        item_id            INTEGER REFERENCES order_items(id),
+        quantity           INTEGER NOT NULL DEFAULT 1,
+        deadline           TEXT,
+        status             TEXT NOT NULL DEFAULT 'pending',
+        created_by         INTEGER REFERENCES users(id),
+        created_at         TEXT NOT NULL DEFAULT (datetime('now')),
+        discord_message_id TEXT,
+        client             TEXT DEFAULT NULL,
+        sale_price         INTEGER DEFAULT NULL
+      );
+      INSERT INTO orders_new SELECT id, item_id, quantity, deadline, status, created_by, created_at, discord_message_id, client, sale_price FROM orders;
+      DROP TABLE orders;
+      ALTER TABLE orders_new RENAME TO orders;
+      PRAGMA foreign_keys = ON;
+    `);
+  }
+}
+
 // Tables multi-lignes contrats + historique
 db.exec(`
   CREATE TABLE IF NOT EXISTS order_lines (
