@@ -2099,3 +2099,62 @@ nav { display: flex; gap: 2px; }
 .backup-row:last-child { border-bottom: none; }
 .backup-name { color: var(--text); font-family: monospace; font-size: 0.78rem; word-break: break-all; }
 .backup-meta { color: var(--text2); white-space: nowrap; }
+
+/* ── User management ─────────────────────────────────────────────────────── */
+.users-list-header {
+  display: grid;
+  grid-template-columns: 1fr 90px 70px 70px 140px;
+  gap: 8px;
+  padding: 6px 10px;
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: .05em;
+  color: var(--text-muted);
+  border-bottom: 1px solid var(--border);
+  margin-bottom: 4px;
+}
+.user-row {
+  display: grid;
+  grid-template-columns: 1fr 90px 70px 70px 140px;
+  gap: 8px;
+  align-items: center;
+  padding: 8px 10px;
+  border-radius: 6px;
+  transition: background .15s;
+}
+.user-row:hover { background: var(--bg-hover, rgba(255,255,255,.04)); }
+.user-row.banned { opacity: .5; }
+.user-info { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.user-avatar {
+  width: 28px; height: 28px; border-radius: 50%;
+  object-fit: cover; flex-shrink: 0;
+  background: var(--bg-card);
+}
+.user-avatar-placeholder {
+  width: 28px; height: 28px; border-radius: 50%;
+  background: var(--accent); color: #fff;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 12px; font-weight: 700; flex-shrink: 0;
+}
+.user-name { font-size: 13px; font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.user-badge {
+  font-size: 10px; padding: 2px 6px; border-radius: 4px; font-weight: 600; white-space: nowrap;
+}
+.user-badge.admin  { background: rgba(130,80,255,.2); color: #a78bfa; }
+.user-badge.local  { background: rgba(255,200,50,.15); color: #fbbf24; }
+.user-badge.discord { background: rgba(88,101,242,.2); color: #818cf8; }
+.user-badge.banned-badge { background: rgba(255,80,80,.15); color: #f87171; }
+.user-stat { font-size: 13px; color: var(--text-muted); text-align: center; }
+.user-actions { display: flex; gap: 6px; }
+.btn-user-ban, .btn-user-del, .btn-user-admin {
+  font-size: 11px; padding: 3px 8px; border-radius: 5px; border: none;
+  cursor: pointer; font-weight: 600; transition: opacity .15s;
+}
+.btn-user-ban   { background: rgba(251,191,36,.15);  color: #fbbf24; }
+.btn-user-ban:hover { opacity: .8; }
+.btn-user-ban.unban { background: rgba(52,211,153,.15); color: #34d399; }
+.btn-user-admin { background: rgba(130,80,255,.15);  color: #a78bfa; }
+.btn-user-admin:hover { opacity: .8; }
+.btn-user-del   { background: rgba(239,68,68,.15);   color: #f87171; }
+.btn-user-del:hover { opacity: .8; }

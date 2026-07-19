@@ -288,6 +288,7 @@ async function loadSettings() {
   const keep = document.getElementById('s-backup-keep');
   if (keep) keep.value = data.backup_keep || '10';
   loadBackupList();
+  if (document.getElementById('users-list')) loadAdminUsers();
 }
 
 function populateMerchSelect() {
@@ -1783,3 +1784,73 @@ document.getElementById('btn-backup-restore')?.addEventListener('click', async (
     btn.textContent = 'Restaurer';
   }
 });
+
+// ── Gestion des utilisateurs (admin) ─────────────────────────────────────────
+
+async function loadAdminUsers() {
+  const users = await api.get('/api/admin/users');
+  if (!users) return;
+  const wrap = document.getElementById('users-list');
+  if (!wrap) return;
+
+  if (!users.length) { wrap.innerHTML = '<p class="settings-hint">Aucun utilisateur.</p>'; return; }
+
+  wrap.innerHTML = users.map(u => {
+    const isLocal   = u.discord_id === '__admin__';
+    const avatarUrl = u.avatar
+      ? `https://cdn.discordapp.com/avatars/${u.discord_id}/${u.avatar}.png?size=64`
+      : null;
+    const avatarEl  = avatarUrl
+      ? `<img class="user-avatar" src="${avatarUrl}" alt="">`
+      : `<div class="user-avatar-placeholder">${u.username.charAt(0).toUpperCase()}</div>`;
+    const typeBadge = isLocal
+      ? `<span class="user-badge local">Local</span>`
+      : `<span class="user-badge discord">Discord</span>`;
+    const adminBadge  = u.is_admin  ? `<span class="user-badge admin">Admin</span>` : '';
+    const bannedBadge = u.banned    ? `<span class="user-badge banned-badge">Banni</span>` : '';
+
+    const banBtn = !isLocal ? `
+      <button class="btn-user-ban${u.banned ? ' unban' : ''}"
+        onclick="toggleUserBan(${u.id}, ${u.banned ? 0 : 1})">
+        ${u.banned ? 'Réactiver' : 'Bannir'}
+      </button>` : '';
+    const adminBtn = !isLocal ? `
+      <button class="btn-user-admin" title="${u.is_admin ? 'Retirer admin' : 'Rendre admin'}"
+        onclick="toggleUserAdmin(${u.id}, ${u.is_admin ? 0 : 1})">
+        ${u.is_admin ? '↓ Admin' : '↑ Admin'}
+      </button>` : '';
+    const delBtn = !isLocal ? `
+      <button class="btn-user-del" onclick="deleteUser(${u.id}, '${u.username.replace(/'/g,'\\\'') }')">✕</button>` : '';
+
+    return `<div class="user-row${u.banned ? ' banned' : ''}" data-uid="${u.id}">
+      <div class="user-info">
+        ${avatarEl}
+        <span class="user-name">${u.username}</span>
+        ${adminBadge}${bannedBadge}
+      </div>
+      <div>${typeBadge}</div>
+      <div class="user-stat">${u.order_count}</div>
+      <div class="user-stat">${u.plant_count}</div>
+      <div class="user-actions">${banBtn}${adminBtn}${delBtn}</div>
+    </div>`;
+  }).join('');
+}
+
+async function toggleUserBan(id, banned) {
+  const r = await api.patch(`/api/admin/users/${id}`, { banned: !!banned });
+  if (r?.success) { showStatus('users-status', banned ? '✓ Utilisateur banni' : '✓ Accès réactivé'); loadAdminUsers(); }
+  else showStatus('users-status', r?.error || 'Erreur', false);
+}
+
+async function toggleUserAdmin(id, is_admin) {
+  const r = await api.patch(`/api/admin/users/${id}`, { is_admin: !!is_admin });
+  if (r?.success) { showStatus('users-status', is_admin ? '✓ Promu admin' : '✓ Admin retiré'); loadAdminUsers(); }
+  else showStatus('users-status', r?.error || 'Erreur', false);
+}
+
+async function deleteUser(id, name) {
+  if (!confirm(`Supprimer l'utilisateur "${name}" ? Cette action est irréversible.`)) return;
+  const r = await api.delete(`/api/admin/users/${id}`);
+  if (r?.success) { showStatus('users-status', '✓ Utilisateur supprimé'); loadAdminUsers(); }
+  else showStatus('users-status', r?.error || 'Erreur', false);
+}

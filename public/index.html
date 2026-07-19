@@ -238,6 +238,21 @@
 
     <!-- Gestion des accès -->
     <div class="settings-section">
+      <h3>Gestion des utilisateurs</h3>
+      <div id="users-list-wrap">
+        <div class="users-list-header">
+          <span>Utilisateur</span>
+          <span>Type</span>
+          <span>Contrats</span>
+          <span>Plants</span>
+          <span>Actions</span>
+        </div>
+        <div id="users-list"></div>
+      </div>
+      <div id="users-status" class="settings-status"></div>
+    </div>
+
+    <div class="settings-section">
       <h3>Gestion des accès</h3>
       <p class="settings-hint">Forcer la re-connexion de tous les utilisateurs Discord (le check d'appartenance au serveur sera rejoué). Ton compte admin n'est pas affecté.</p>
       <button class="btn-danger" id="btn-revoke-sessions">Révoquer toutes les sessions Discord</button>

@@ -257,8 +257,10 @@ app.get('/auth/logout', (req, res) => {
 // ── Middlewares ───────────────────────────────────────────────────────────────
 
 function requireAuth(req, res, next) {
-  if (req.session?.userId) return next();
-  res.status(401).json({ error: 'Non authentifié' });
+  if (!req.session?.userId) return res.status(401).json({ error: 'Non authentifié' });
+  const u = db.prepare('SELECT banned FROM users WHERE id=?').get(req.session.userId);
+  if (u?.banned) { req.session.destroy(() => {}); return res.status(403).json({ error: 'Accès révoqué' }); }
+  next();
 }
 
 function requireAdmin(req, res, next) {
@@ -408,17 +410,24 @@ app.delete('/api/points/:id', (req, res) => {
 
 // ── Helpers sessions ──────────────────────────────────────────────────────────
 
-function revokeDiscordSessions(currentSid) {
-  // Récupère toutes les sessions sauf la courante, supprime celles des users non-admin
-  const sessions = db.prepare('SELECT sid, sess FROM sessions WHERE sid != ?').all(currentSid);
+function revokeDiscordSessions(currentSid, targetUserId = null) {
+  // Si targetUserId : révoque uniquement les sessions de cet utilisateur
+  // Sinon : révoque toutes les sessions non-admin (hors currentSid)
+  const sessions = currentSid
+    ? db.prepare('SELECT sid, sess FROM sessions WHERE sid != ?').all(currentSid)
+    : db.prepare('SELECT sid, sess FROM sessions').all();
   let count = 0;
   for (const s of sessions) {
     try {
       const data   = JSON.parse(s.sess);
       const userId = data.userId;
       if (!userId) { db.prepare('DELETE FROM sessions WHERE sid=?').run(s.sid); count++; continue; }
-      const user = db.prepare('SELECT is_admin FROM users WHERE id=?').get(userId);
-      if (!user?.is_admin) { db.prepare('DELETE FROM sessions WHERE sid=?').run(s.sid); count++; }
+      if (targetUserId) {
+        if (userId === targetUserId) { db.prepare('DELETE FROM sessions WHERE sid=?').run(s.sid); count++; }
+      } else {
+        const user = db.prepare('SELECT is_admin FROM users WHERE id=?').get(userId);
+        if (!user?.is_admin) { db.prepare('DELETE FROM sessions WHERE sid=?').run(s.sid); count++; }
+      }
     } catch (_) { db.prepare('DELETE FROM sessions WHERE sid=?').run(s.sid); count++; }
   }
   return count;
@@ -873,6 +882,41 @@ app.patch('/api/users/me/notify', (req, res) => {
   const { discord_notify } = req.body;
   db.prepare('UPDATE users SET discord_notify=? WHERE id=?').run(discord_notify ? 1 : 0, req.session.userId);
   res.json({ success: true, discord_notify: discord_notify ? 1 : 0 });
+});
+
+
+// ── Admin : gestion des utilisateurs ─────────────────────────────────────────
+
+app.get('/api/admin/users', requireAdmin, (_, res) => {
+  const users = db.prepare(`
+    SELECT id, username, avatar, discord_id, is_admin, banned,
+           discord_notify,
+           (SELECT COUNT(*) FROM order_assignments oa WHERE oa.user_id = users.id) AS order_count,
+           (SELECT COUNT(*) FROM points p WHERE p.user_id = users.id) AS plant_count
+    FROM users ORDER BY username
+  `).all();
+  res.json(users);
+});
+
+app.patch('/api/admin/users/:id', requireAdmin, (req, res) => {
+  const { banned, is_admin } = req.body;
+  const target = db.prepare('SELECT * FROM users WHERE id=?').get(req.params.id);
+  if (!target) return res.status(404).json({ error: 'Utilisateur introuvable' });
+  // Protéger le compte admin local
+  if (target.discord_id === '__admin__') return res.status(400).json({ error: 'Impossible de modifier le compte admin local' });
+  if (banned !== undefined) db.prepare('UPDATE users SET banned=? WHERE id=?').run(banned ? 1 : 0, req.params.id);
+  if (is_admin !== undefined) db.prepare('UPDATE users SET is_admin=? WHERE id=?').run(is_admin ? 1 : 0, req.params.id);
+  // Révoquer les sessions si on banne
+  if (banned) revokeDiscordSessions(null, parseInt(req.params.id));
+  res.json({ success: true });
+});
+
+app.delete('/api/admin/users/:id', requireAdmin, (req, res) => {
+  const target = db.prepare('SELECT * FROM users WHERE id=?').get(req.params.id);
+  if (!target) return res.status(404).json({ error: 'Utilisateur introuvable' });
+  if (target.discord_id === '__admin__') return res.status(400).json({ error: 'Impossible de supprimer le compte admin local' });
+  db.prepare('DELETE FROM users WHERE id=?').run(req.params.id);
+  res.json({ success: true });
 });
 
 // ── Favoris inventaire ────────────────────────────────────────────────────────

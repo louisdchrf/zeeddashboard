@@ -124,6 +124,7 @@ try { db.exec(`ALTER TABLE orders ADD COLUMN discord_message_id TEXT`); } catch 
 try { db.exec(`ALTER TABLE orders ADD COLUMN client TEXT DEFAULT NULL`); } catch (_) {}
 try { db.exec(`ALTER TABLE order_items ADD COLUMN location TEXT DEFAULT NULL`); } catch (_) {}
 try { db.exec(`ALTER TABLE users ADD COLUMN discord_notify INTEGER DEFAULT 1`); } catch (_) {}
+try { db.exec(`ALTER TABLE users ADD COLUMN banned INTEGER DEFAULT 0`); } catch (_) {}
 try { db.exec(`ALTER TABLE orders ADD COLUMN sale_price INTEGER DEFAULT NULL`); } catch (_) {}
 try { db.exec(`ALTER TABLE order_lines ADD COLUMN status TEXT NOT NULL DEFAULT 'pending'`); } catch (_) {}
 try { db.exec(`ALTER TABLE order_lines ADD COLUMN sale_price INTEGER DEFAULT NULL`); } catch (_) {}
