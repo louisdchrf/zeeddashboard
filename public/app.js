@@ -1217,10 +1217,26 @@ function getOrderLines() {
   return lines;
 }
 
+function updateGlobalSalePrice() {
+  const spg = document.getElementById('o-sale-price-group');
+  if (!spg || spg.style.display === 'none') return;
+  let total = 0;
+  for (let i = 0; i < 5; i++) {
+    const priceEl = document.querySelector(`.o-line-price[data-idx="${i}"]`);
+    if (priceEl && priceEl.style.display !== 'none') {
+      const v = parseInt(priceEl.value);
+      if (!isNaN(v)) total += v;
+    }
+  }
+  const gp = document.getElementById('o-sale-price');
+  if (gp) gp.value = total > 0 ? total : '';
+}
+
 function onLineStatusChange(selectEl) {
   const idx   = selectEl.dataset.idx;
   const price = document.querySelector(`.o-line-price[data-idx="${idx}"]`);
   if (price) price.style.display = selectEl.value === 'done' ? '' : 'none';
+  updateGlobalSalePrice();
 }
 
 function updateContractIngredientsPreview() {

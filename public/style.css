@@ -1984,7 +1984,7 @@ nav { display: flex; gap: 2px; }
 }
 .o-line-status:focus { outline: none; border-color: var(--accent); }
 .o-line-price {
-  flex: 0 0 72px;
+  flex: 0 0 90px;
   background: var(--bg2);
   border: 1px solid var(--border);
   color: var(--text);
