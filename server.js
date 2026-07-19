@@ -1,3 +1,5 @@
+const fs   = require('fs');
+const path = require('path');
 const express = require('express');
 const http    = require('http');
 const { Server } = require('socket.io');
@@ -1251,5 +1253,124 @@ app.get('/api/contracts/stats', (_, res) => {
   `).all();
   res.json(rows);
 });
+
+// ════════════════════════════════════════════════════════════════════════════
+// BACKUP / RESTORE
+// ════════════════════════════════════════════════════════════════════════════
+const BACKUP_DIR  = '/app/data/backups';
+const DB_PATH     = '/app/data/gta.db';
+
+// Créer le dossier backups au démarrage
+if (!fs.existsSync(BACKUP_DIR)) fs.mkdirSync(BACKUP_DIR, { recursive: true });
+
+async function createBackup(label = 'manual') {
+  const ts   = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
+  const dest = `${BACKUP_DIR}/backup-${ts}-${label}.db`;
+  await db.backup(dest);
+  // Purger les anciens si > backup_keep
+  const keep = parseInt(getSetting('backup_keep') || '10');
+  const files = fs.readdirSync(BACKUP_DIR)
+    .filter(f => f.endsWith('.db'))
+    .map(f => ({ name: f, mtime: fs.statSync(`${BACKUP_DIR}/${f}`).mtimeMs }))
+    .sort((a, b) => b.mtime - a.mtime);
+  for (const f of files.slice(keep)) {
+    try { fs.unlinkSync(`${BACKUP_DIR}/${f.name}`); } catch (_) {}
+  }
+  setSetting('backup_last_at', new Date().toISOString());
+  return dest;
+}
+
+// ── Scheduler sauvegarde automatique ────────────────────────────────────────
+let backupTimer = null;
+function scheduleAutoBackup() {
+  if (backupTimer) clearTimeout(backupTimer);
+  if (getSetting('backup_auto_enabled') !== '1') return;
+  const freq = getSetting('backup_frequency') || 'daily';
+  const intervalMs = freq === 'weekly' ? 7 * 86400_000 : 86400_000;
+  const lastAt = getSetting('backup_last_at');
+  const elapsed = lastAt ? Date.now() - new Date(lastAt).getTime() : Infinity;
+  const delay = Math.max(0, intervalMs - elapsed);
+  backupTimer = setTimeout(async () => {
+    try { await createBackup('auto'); } catch (e) { console.error('Auto-backup failed:', e.message); }
+    scheduleAutoBackup(); // re-planifier
+  }, delay);
+}
+scheduleAutoBackup(); // lancer au démarrage
+
+// Télécharger la DB actuelle
+app.get('/api/admin/backup/download', requireAdmin, async (req, res) => {
+  const tmp = `${BACKUP_DIR}/_download-${Date.now()}.db`;
+  try {
+    await db.backup(tmp);
+    const ts = new Date().toISOString().slice(0, 10);
+    res.download(tmp, `zeed-backup-${ts}.db`, () => {
+      try { fs.unlinkSync(tmp); } catch (_) {}
+    });
+  } catch (e) {
+    try { fs.unlinkSync(tmp); } catch (_) {}
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// Créer une sauvegarde manuelle
+app.post('/api/admin/backup/create', requireAdmin, async (req, res) => {
+  try {
+    const dest = await createBackup('manual');
+    res.json({ success: true, file: path.basename(dest) });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// Lister les sauvegardes
+app.get('/api/admin/backup/list', requireAdmin, (_, res) => {
+  try {
+    const files = fs.readdirSync(BACKUP_DIR)
+      .filter(f => f.endsWith('.db'))
+      .map(f => {
+        const stat = fs.statSync(`${BACKUP_DIR}/${f}`);
+        return { name: f, size: stat.size, createdAt: stat.mtime.toISOString() };
+      })
+      .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+    res.json(files);
+  } catch (e) {
+    res.json([]);
+  }
+});
+
+// Télécharger une sauvegarde spécifique
+app.get('/api/admin/backup/download/:filename', requireAdmin, (req, res) => {
+  const name = path.basename(req.params.filename);
+  const file = `${BACKUP_DIR}/${name}`;
+  if (!name.endsWith('.db') || !fs.existsSync(file))
+    return res.status(404).json({ error: 'Fichier introuvable' });
+  res.download(file, name);
+});
+
+// Supprimer une sauvegarde
+app.delete('/api/admin/backup/:filename', requireAdmin, (req, res) => {
+  const name = path.basename(req.params.filename);
+  const file = `${BACKUP_DIR}/${name}`;
+  if (!name.endsWith('.db') || !fs.existsSync(file))
+    return res.status(404).json({ error: 'Fichier introuvable' });
+  fs.unlinkSync(file);
+  res.json({ success: true });
+});
+
+// Importer / restaurer une DB
+app.post('/api/admin/backup/restore', requireAdmin,
+  express.raw({ type: 'application/octet-stream', limit: '500mb' }),
+  (req, res) => {
+    const buf = req.body;
+    if (!buf || buf.length < 16) return res.status(400).json({ error: 'Fichier invalide' });
+    // Vérifier magic bytes SQLite
+    if (buf.slice(0, 15).toString('ascii') !== 'SQLite format 3')
+      return res.status(400).json({ error: 'Ce fichier n\'est pas une base SQLite valide' });
+    const incoming = `${DB_PATH}.incoming`;
+    fs.writeFileSync(incoming, buf);
+    res.json({ success: true, message: 'Restauration en cours — le serveur redémarre...' });
+    setTimeout(() => process.exit(0), 500);
+  }
+);
 
 server.listen(3000, () => console.log('GTA Dashboard → http://localhost:3000'));

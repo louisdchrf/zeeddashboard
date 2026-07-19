@@ -1679,3 +1679,115 @@ function updateNotifyBtn() {
   initNotifyToggle(user);
   initSocket();
 })();
+
+// ════════════════════════════════════════════════════════════════════════════
+// BACKUP
+// ════════════════════════════════════════════════════════════════════════════
+function onBackupAutoChange() {
+  const enabled = document.getElementById('s-backup-auto')?.checked;
+  const body    = document.getElementById('backup-auto-body');
+  if (body) body.style.display = enabled ? '' : 'none';
+}
+
+async function loadBackupList() {
+  const el = document.getElementById('backup-list');
+  if (!el) return;
+  const list = await api.get('/api/admin/backup/list');
+  if (!list || list.length === 0) {
+    el.innerHTML = '<p class="empty-state">Aucune sauvegarde</p>';
+    return;
+  }
+  el.innerHTML = list.map(f => {
+    const date = new Date(f.createdAt).toLocaleString('fr-FR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+    const size = f.size > 1024 * 1024 ? `${(f.size / 1024 / 1024).toFixed(1)} Mo` : `${Math.round(f.size / 1024)} Ko`;
+    return `<div class="backup-row">
+      <span class="backup-name">${escapeHtml(f.name)}</span>
+      <span class="backup-meta">${date} · ${size}</span>
+      <div style="display:flex;gap:6px;margin-left:auto">
+        <a href="/api/admin/backup/download/${encodeURIComponent(f.name)}" download class="btn-secondary" style="padding:3px 10px;font-size:.78rem;text-decoration:none">⬇️</a>
+        <button class="btn-danger" style="padding:3px 10px;font-size:.78rem" onclick="deleteBackup('${escapeHtml(f.name)}')">🗑️</button>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+async function deleteBackup(name) {
+  if (!confirm(`Supprimer la sauvegarde "${name}" ?`)) return;
+  const r = await api.delete(`/api/admin/backup/${encodeURIComponent(name)}`);
+  if (r?.error) return alert(r.error);
+  loadBackupList();
+}
+
+// Charger les settings backup dans loadSettings
+const _origLoadSettings = loadSettings;
+async function loadSettings() {
+  await _origLoadSettings();
+  const data = await api.get('/api/settings');
+  if (!data) return;
+  const autoCb = document.getElementById('s-backup-auto');
+  if (autoCb) {
+    autoCb.checked = data.backup_auto_enabled === '1';
+    onBackupAutoChange();
+  }
+  const freq = document.getElementById('s-backup-frequency');
+  if (freq) freq.value = data.backup_frequency || 'daily';
+  const keep = document.getElementById('s-backup-keep');
+  if (keep) keep.value = data.backup_keep || '10';
+  loadBackupList();
+}
+
+document.getElementById('btn-backup-now')?.addEventListener('click', async () => {
+  const btn = document.getElementById('btn-backup-now');
+  btn.disabled = true;
+  btn.textContent = '⏳ En cours…';
+  const r = await api.post('/api/admin/backup/create', {});
+  btn.disabled = false;
+  btn.textContent = '💾 Sauvegarder maintenant';
+  if (r?.success) {
+    showStatus('backup-create-status', `✓ Sauvegarde créée : ${r.file}`);
+    loadBackupList();
+  } else {
+    showStatus('backup-create-status', r?.error || 'Erreur', false);
+  }
+});
+
+document.getElementById('btn-save-backup-settings')?.addEventListener('click', async () => {
+  const payload = {
+    backup_auto_enabled: document.getElementById('s-backup-auto')?.checked ? '1' : '0',
+    backup_frequency:    document.getElementById('s-backup-frequency')?.value || 'daily',
+    backup_keep:         document.getElementById('s-backup-keep')?.value || '10',
+  };
+  const r = await api.put('/api/settings', payload);
+  if (r?.success) showStatus('backup-settings-status', '✓ Paramètres enregistrés');
+  else showStatus('backup-settings-status', r?.error || 'Erreur', false);
+});
+
+document.getElementById('btn-backup-restore')?.addEventListener('click', async () => {
+  const file = document.getElementById('backup-restore-file')?.files?.[0];
+  if (!file) return alert('Sélectionne un fichier .db');
+  if (!confirm('⚠️ Cette action remplace TOUTE la base de données actuelle et redémarre le serveur. Continuer ?')) return;
+  const btn = document.getElementById('btn-backup-restore');
+  btn.disabled = true;
+  btn.textContent = '⏳ Restauration…';
+  try {
+    const buf = await file.arrayBuffer();
+    const r = await fetch('/api/admin/backup/restore', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/octet-stream' },
+      body: buf,
+    });
+    const json = await r.json();
+    if (json.success) {
+      showStatus('backup-restore-status', '✓ Restauration lancée — rechargement dans 4s…');
+      setTimeout(() => location.reload(), 4000);
+    } else {
+      showStatus('backup-restore-status', json.error || 'Erreur', false);
+      btn.disabled = false;
+      btn.textContent = 'Restaurer';
+    }
+  } catch (e) {
+    showStatus('backup-restore-status', e.message, false);
+    btn.disabled = false;
+    btn.textContent = 'Restaurer';
+  }
+});

@@ -244,6 +244,64 @@
       <div id="revoke-status" class="settings-status"></div>
     </div>
 
+
+    <!-- Sauvegardes -->
+    <div class="settings-section">
+      <h3>Sauvegardes de la base de données</h3>
+
+      <!-- Actions rapides -->
+      <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:16px">
+        <button class="btn-primary" id="btn-backup-now">💾 Sauvegarder maintenant</button>
+        <a class="btn-secondary" id="btn-backup-download" href="/api/admin/backup/download" download style="display:inline-flex;align-items:center;text-decoration:none">⬇️ Télécharger la DB actuelle</a>
+      </div>
+      <div id="backup-create-status" class="settings-status"></div>
+
+      <!-- Sauvegarde automatique -->
+      <div class="form-group" style="margin-top:12px">
+        <label class="toggle-label">
+          <input type="checkbox" id="s-backup-auto" onchange="onBackupAutoChange()"/>
+          <span>Sauvegarde automatique</span>
+        </label>
+      </div>
+      <div id="backup-auto-body" style="display:none">
+        <div style="display:flex;gap:12px;flex-wrap:wrap">
+          <div class="form-group" style="flex:1;min-width:140px">
+            <label>Fréquence</label>
+            <select id="s-backup-frequency" style="width:100%;background:var(--bg3);border:1px solid var(--border);color:var(--text);padding:7px 10px;border-radius:var(--r-sm);color-scheme:dark">
+              <option value="daily">Quotidienne</option>
+              <option value="weekly">Hebdomadaire</option>
+            </select>
+          </div>
+          <div class="form-group" style="flex:1;min-width:140px">
+            <label>Sauvegardes conservées</label>
+            <input type="number" id="s-backup-keep" min="1" max="50" value="10" style="width:100%"/>
+          </div>
+        </div>
+      </div>
+      <button class="btn-primary" id="btn-save-backup-settings" style="margin-top:8px">Enregistrer les paramètres</button>
+      <div id="backup-settings-status" class="settings-status"></div>
+
+      <!-- Liste des sauvegardes -->
+      <div style="margin-top:20px">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
+          <label style="font-size:.8rem;font-weight:600;color:var(--text2);text-transform:uppercase;letter-spacing:.05em">Sauvegardes disponibles</label>
+          <button class="btn-secondary" onclick="loadBackupList()" style="padding:3px 10px;font-size:.78rem">↻ Rafraîchir</button>
+        </div>
+        <div id="backup-list"><p class="empty-state">Chargement…</p></div>
+      </div>
+
+      <!-- Import / Restauration -->
+      <div style="margin-top:20px;padding-top:16px;border-top:1px solid var(--border)">
+        <label style="font-size:.8rem;font-weight:600;color:var(--text2);text-transform:uppercase;letter-spacing:.05em">Restaurer une sauvegarde</label>
+        <p class="field-hint" style="margin:6px 0 10px">⚠️ Remplace intégralement la base actuelle. Le serveur redémarrera automatiquement.</p>
+        <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+          <input type="file" id="backup-restore-file" accept=".db" style="flex:1;min-width:180px;color:var(--text);font-size:.85rem"/>
+          <button class="btn-danger" id="btn-backup-restore">Restaurer</button>
+        </div>
+        <div id="backup-restore-status" class="settings-status"></div>
+      </div>
+    </div>
+
     <!-- Mot de passe admin -->
     <div class="settings-section">
       <h3>Mot de passe admin</h3>

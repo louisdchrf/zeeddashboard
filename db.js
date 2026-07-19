@@ -1,5 +1,20 @@
-const Database = require('better-sqlite3');
+const fs   = require('fs');
 const path = require('path');
+
+// Restauration pending : si un fichier .incoming existe, il remplace la DB
+const _dbPath      = path.join('/app/data', 'gta.db');
+const _incomingPath = _dbPath + '.incoming';
+if (fs.existsSync(_incomingPath)) {
+  try {
+    fs.copyFileSync(_incomingPath, _dbPath);
+    fs.unlinkSync(_incomingPath);
+    console.log('[restore] Base de données restaurée depuis .incoming');
+  } catch (e) {
+    console.error('[restore] Échec de la restauration:', e.message);
+  }
+}
+
+const Database = require('better-sqlite3');
 
 const db = new Database(path.join('/app/data', 'gta.db'));
 
