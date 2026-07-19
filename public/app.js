@@ -121,27 +121,27 @@ document.querySelectorAll('.tab-btn, .bnav-btn').forEach(btn =>
 const api = {
   get: async (url) => {
     const r = await fetch(url);
-    if (r.status === 401) { window.location.reload(); return null; }
+    if (r.status === 401 || r.status === 403) { window.location.reload(); return null; }
     return r.json();
   },
   post: async (url, body) => {
     const r = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
-    if (r.status === 401) { window.location.reload(); return null; }
+    if (r.status === 401 || r.status === 403) { window.location.reload(); return null; }
     return r.json();
   },
   put: async (url, body) => {
     const r = await fetch(url, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
-    if (r.status === 401) { window.location.reload(); return null; }
+    if (r.status === 401 || r.status === 403) { window.location.reload(); return null; }
     return r.json();
   },
   patch: async (url, body) => {
     const r = await fetch(url, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
-    if (r.status === 401) { window.location.reload(); return null; }
+    if (r.status === 401 || r.status === 403) { window.location.reload(); return null; }
     return r.json();
   },
   delete: async (url) => {
     const r = await fetch(url, { method: 'DELETE' });
-    if (r.status === 401) { window.location.reload(); return null; }
+    if (r.status === 401 || r.status === 403) { window.location.reload(); return null; }
     return r.json();
   },
 };
