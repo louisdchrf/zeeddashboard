@@ -1671,6 +1671,7 @@ function updateNotifyBtn() {
   await loadPoints();
   await loadOrderItems();
   await loadOrders();
+  renderOrders();
   await loadUsers();
   await loadInventory();
   await loadInvFavorites();
