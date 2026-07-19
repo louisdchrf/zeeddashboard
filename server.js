@@ -702,40 +702,33 @@ setInterval(async () => {
 
 // ── Stats ─────────────────────────────────────────────────────────────────────
 
-app.get('/api/stats', (_, res) => {
-  const byMerch = db.prepare(`
-    SELECT merchandise_name, merchandise_color, SUM(quantity) AS total, COUNT(*) AS harvests
-    FROM harvest_log GROUP BY merchandise_name ORDER BY total DESC
-  `).all();
-
-  const byPlayer = db.prepare(`
-    SELECT u.username, u.avatar, u.discord_id,
-           SUM(h.quantity) AS total, COUNT(*) AS harvests
-    FROM harvest_log h
-    LEFT JOIN users u ON h.user_id = u.id
-    GROUP BY h.user_id ORDER BY total DESC LIMIT 10
-  `).all();
-
-  const last7days = db.prepare(`
-    SELECT date(harvested_at) AS day, SUM(quantity) AS total
-    FROM harvest_log
-    WHERE harvested_at >= datetime('now', '-6 days')
-    GROUP BY day ORDER BY day
-  `).all();
-
-  const recentFeed = db.prepare(`
-    SELECT h.merchandise_name, h.merchandise_color, h.quantity, h.location_name,
-           h.harvested_at, h.visibility, u.username, u.avatar, u.discord_id
-    FROM harvest_log h
-    LEFT JOIN users u ON h.user_id = u.id
-    ORDER BY h.harvested_at DESC LIMIT 15
-  `).all();
-
+app.get('/api/stats', requireAuth, (_, res) => {
+  // KPIs ventes
   const totals = db.prepare(`
-    SELECT SUM(quantity) AS plants, COUNT(*) AS harvests FROM harvest_log
+    SELECT
+      COUNT(DISTINCT ol.order_id)       AS nb_contracts,
+      SUM(ol.quantity)                  AS total_units,
+      SUM(ol.sale_price)                AS total_revenue
+    FROM order_lines ol
+    WHERE ol.status = 'done' AND ol.sale_price > 0
   `).get();
 
-  res.json({ byMerch, byPlayer, last7days, recentFeed, totals });
+  // Classement membres par revenu (contrats où ils sont assignés)
+  const byMember = db.prepare(`
+    SELECT u.id, u.username, u.avatar, u.discord_id,
+      COUNT(DISTINCT oa.order_id)                        AS nb_contracts,
+      SUM(ol.quantity)                                   AS total_units,
+      SUM(ol.sale_price)                                 AS total_revenue
+    FROM order_assignments oa
+    JOIN users u ON oa.user_id = u.id
+    JOIN order_lines ol ON ol.order_id = oa.order_id
+    WHERE ol.status = 'done' AND ol.sale_price > 0
+    GROUP BY u.id
+    ORDER BY total_revenue DESC
+    LIMIT 10
+  `).all();
+
+  res.json({ totals, byMember });
 });
 
 // ── Recettes ──────────────────────────────────────────────────────────────────

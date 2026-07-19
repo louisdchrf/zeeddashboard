@@ -884,86 +884,34 @@ async function adjustInventory(itemId, direction) {
 
 // ── Stats ─────────────────────────────────────────────────────────────────────
 async function loadAndRenderStats() {
-  const data = await api.get('/api/stats');
+  const [data, salesData] = await Promise.all([
+    api.get('/api/stats'),
+    api.get('/api/stats/sales'),
+  ]);
   if (!data) return;
 
-  // KPIs
+  // KPIs ventes
+  const rev = Number(data.totals?.total_revenue || 0);
   document.getElementById('stats-kpis').innerHTML = `
     <div class="kpi-card">
-      <div class="kpi-value">${data.totals?.plants || 0}</div>
-      <div class="kpi-label">Plants récoltés</div>
+      <div class="kpi-value">$${rev.toLocaleString('fr-FR')}</div>
+      <div class="kpi-label">Revenu total</div>
     </div>
     <div class="kpi-card">
-      <div class="kpi-value">${data.totals?.harvests || 0}</div>
-      <div class="kpi-label">Récoltes effectuées</div>
+      <div class="kpi-value">${data.totals?.nb_contracts || 0}</div>
+      <div class="kpi-label">Contrats livrés</div>
     </div>
     <div class="kpi-card">
-      <div class="kpi-value">${data.byMerch.length}</div>
-      <div class="kpi-label">Types de drogue</div>
+      <div class="kpi-value">${data.totals?.total_units || 0}</div>
+      <div class="kpi-label">Unités vendues</div>
     </div>
     <div class="kpi-card">
-      <div class="kpi-value">${data.byPlayer.length}</div>
+      <div class="kpi-value">${data.byMember?.length || 0}</div>
       <div class="kpi-label">Membres actifs</div>
     </div>
   `;
 
-  // Par marchandise — barres CSS
-  const maxMerch = Math.max(...data.byMerch.map(m => m.total), 1);
-  document.getElementById('stats-by-merch').innerHTML = data.byMerch.length === 0
-    ? '<p class="empty-state">Aucune récolte enregistrée</p>'
-    : data.byMerch.map(m => `
-      <div class="stat-bar-row">
-        <span class="stat-bar-label">${escapeHtml(m.merchandise_name)}</span>
-        <div class="stat-bar-track">
-          <div class="stat-bar-fill" style="width:${Math.round(m.total/maxMerch*100)}%;background:${escapeHtml(m.merchandise_color)}"></div>
-        </div>
-        <span class="stat-bar-value">${m.total}</span>
-      </div>
-    `).join('');
-
-  // Leaderboard
-  document.getElementById('stats-by-player').innerHTML = data.byPlayer.length === 0
-    ? '<p class="empty-state">Aucune récolte enregistrée</p>'
-    : data.byPlayer.map((p, i) => {
-      const hasAvatar = p.avatar && p.discord_id && p.discord_id !== '__admin__';
-      const avatarHtml = hasAvatar
-        ? `<img class="presence-avatar" src="https://cdn.discordapp.com/avatars/${p.discord_id}/${p.avatar}.png" alt=""/>`
-        : `<span class="presence-dot">${(p.username||'?')[0].toUpperCase()}</span>`;
-      return `<div class="leaderboard-row">
-        <span class="lb-rank">#${i+1}</span>
-        ${avatarHtml}
-        <span class="lb-name">${escapeHtml(p.username || 'Inconnu')}</span>
-        <span class="lb-total">${p.total} plants</span>
-        <span class="lb-harvests">(${p.harvests} récoltes)</span>
-      </div>`;
-    }).join('');
-
-  // Graphe 7 jours
-  const days7El = document.getElementById('stats-last7');
-  if (data.last7days.length === 0) {
-    days7El.innerHTML = '<p class="empty-state">Pas de données sur 7 jours</p>';
-  } else {
-    const max7 = Math.max(...data.last7days.map(d => d.total), 1);
-    const allDays = [];
-    for (let i = 6; i >= 0; i--) {
-      const d = new Date(); d.setDate(d.getDate() - i);
-      allDays.push(d.toISOString().slice(0, 10));
-    }
-    days7El.innerHTML = `<div class="bar-chart-inner">${allDays.map(day => {
-      const found = data.last7days.find(d => d.day === day);
-      const total = found?.total || 0;
-      const h = Math.round(total / max7 * 100);
-      const label = new Date(day + 'T12:00:00').toLocaleDateString('fr-FR', { weekday: 'short', day: 'numeric' });
-      return `<div class="bar-col">
-        <div class="bar-tip">${total || ''}</div>
-        <div class="bar-body" style="height:${h}%"></div>
-        <div class="bar-label">${label}</div>
-      </div>`;
-    }).join('')}</div>`;
-  }
-
   // Ventes par article
-  const salesData = await api.get('/api/stats/sales');
   const salesEl = document.getElementById('stats-sales');
   if (salesEl) {
     if (!salesData || salesData.length === 0) {
@@ -994,21 +942,31 @@ async function loadAndRenderStats() {
     }
   }
 
-  // Feed récent
-  document.getElementById('stats-feed').innerHTML = data.recentFeed.length === 0
-    ? '<p class="empty-state">Aucune récolte enregistrée</p>'
-    : data.recentFeed.map(h => {
-      const when = new Date(h.harvested_at + 'Z').toLocaleString('fr-FR', { day:'2-digit', month:'2-digit', hour:'2-digit', minute:'2-digit' });
-      return `<div class="feed-row">
-        <span class="feed-dot" style="background:${escapeHtml(h.merchandise_color)}"></span>
-        <span class="feed-merch">${escapeHtml(h.merchandise_name)}</span>
-        <span class="feed-qty">×${h.quantity}</span>
-        ${h.location_name ? `<span class="feed-loc">📍 ${escapeHtml(h.location_name)}</span>` : ''}
-        <span class="feed-player">${escapeHtml(h.username || '—')}</span>
-        <span class="feed-time">${when}</span>
-      </div>`;
-    }).join('');
-
+  // Classement membres
+  const memberEl = document.getElementById('stats-by-member');
+  if (memberEl) {
+    if (!data.byMember || data.byMember.length === 0) {
+      memberEl.innerHTML = '<p class="empty-state">Aucune vente enregistrée</p>';
+    } else {
+      const maxRev = Math.max(...data.byMember.map(m => m.total_revenue || 0), 1);
+      memberEl.innerHTML = data.byMember.map((m, i) => {
+        const hasAvatar = m.avatar && m.discord_id && m.discord_id !== '__admin__' && m.discord_id !== 'local';
+        const avatarHtml = hasAvatar
+          ? `<img class="presence-avatar" src="https://cdn.discordapp.com/avatars/${m.discord_id}/${m.avatar}.png" alt=""/>`
+          : `<span class="presence-dot">${(m.username||'?')[0].toUpperCase()}</span>`;
+        const pct = Math.round((m.total_revenue || 0) / maxRev * 100);
+        const rev = Number(m.total_revenue || 0).toLocaleString('fr-FR');
+        return `<div class="leaderboard-row">
+          <span class="lb-rank">#${i+1}</span>
+          ${avatarHtml}
+          <span class="lb-name">${escapeHtml(m.username || 'Inconnu')}</span>
+          <div class="lb-bar-track"><div class="lb-bar-fill" style="width:${pct}%"></div></div>
+          <span class="lb-total">$${rev}</span>
+          <span class="lb-harvests">${m.nb_contracts} contrat${m.nb_contracts > 1 ? 's' : ''}</span>
+        </div>`;
+      }).join('');
+    }
+  }
 }
 
 // ── Recettes ──────────────────────────────────────────────────────────────────
