@@ -171,6 +171,14 @@
     <!-- Discord OAuth2 -->
     <div class="settings-section">
       <h3>Connexion Discord (OAuth2)</h3>
+      <div class="form-group" style="margin-bottom:12px">
+        <label class="toggle-label">
+          <input type="checkbox" id="s-discord-enabled" onchange="onDiscordEnabledChange()"/>
+          <span>Activer la connexion Discord</span>
+        </label>
+        <p class="field-hint">Décocher désactive OAuth2 et les notifications Discord sans effacer les paramètres.</p>
+      </div>
+      <div id="discord-settings-body">
       <p class="settings-hint">Crée une app sur <strong>discord.com/developers/applications</strong>, puis renseigne les champs ci-dessous. Dans ton app Discord, ajoute l'URL de callback dans OAuth2 &gt; Redirects.</p>
       <div class="form-group">
         <label>Client ID</label>
@@ -192,6 +200,7 @@
         <input type="text" id="s-discord-guild-id" placeholder="ex: 123456789012345678 — laisser vide = pas de restriction"/>
         <p class="field-hint">Clic droit sur ton serveur Discord → Copier l'identifiant du serveur</p>
       </div>
+      </div><!-- /discord-settings-body -->
       <button class="btn-primary" id="btn-save-discord">Enregistrer</button>
       <div id="discord-settings-status" class="settings-status"></div>
     </div>

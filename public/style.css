@@ -2068,3 +2068,20 @@ nav { display: flex; gap: 2px; }
   transition: color .12s;
 }
 .btn-remove-line:hover { color: var(--red); }
+
+/* ── Toggle label (settings) ────────────────────────────────────────────────── */
+.toggle-label {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  cursor: pointer;
+  font-size: 0.9rem;
+  font-weight: 500;
+  color: var(--text);
+}
+.toggle-label input[type="checkbox"] {
+  width: 16px;
+  height: 16px;
+  accent-color: var(--accent);
+  cursor: pointer;
+}

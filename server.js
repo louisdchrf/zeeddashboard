@@ -103,9 +103,10 @@ function setSetting(key, value) {
 
 // État de configuration (utilisé par le login screen)
 app.get('/auth/config', (_, res) => {
-  const adminExists     = !!getSetting('admin_password_hash');
+  const adminExists       = !!getSetting('admin_password_hash');
   const discordConfigured = !!getSetting('discord_client_id');
-  res.json({ adminExists, discordConfigured, version: process.env.BUILD_VERSION || 'dev' });
+  const discordEnabled    = getSetting('discord_enabled') !== '0';
+  res.json({ adminExists, discordConfigured, discordEnabled, version: process.env.BUILD_VERSION || 'dev' });
 });
 
 // Première configuration — création du compte admin
@@ -148,6 +149,7 @@ app.post('/auth/admin', (req, res) => {
 
 // Connexion Discord — credentials depuis la DB (configurés par l'admin)
 app.get('/auth/discord', (req, res) => {
+  if (getSetting('discord_enabled') === '0') return res.status(403).send('Connexion Discord désactivée');
   const clientId    = getSetting('discord_client_id');
   const redirectUri = getSetting('discord_redirect_uri') || `${req.protocol}://${req.get('host')}/auth/discord/callback`;
   if (!clientId) return res.status(500).send('Discord non configuré — connecte-toi en admin et va dans Paramètres.');
@@ -156,6 +158,7 @@ app.get('/auth/discord', (req, res) => {
 });
 
 app.get('/auth/discord/callback', async (req, res) => {
+  if (getSetting('discord_enabled') === '0') return res.status(403).send('Connexion Discord désactivée');
   const { code } = req.query;
   if (!code) return res.redirect('/?error=no_code');
   const clientId     = getSetting('discord_client_id');

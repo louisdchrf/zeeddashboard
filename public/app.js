@@ -264,6 +264,9 @@ async function loadPoints() {
 async function loadSettings() {
   const data = await api.get('/api/settings');
   if (!data) return;
+  const discordEnabled = data.discord_enabled !== '0';
+  const cb = document.getElementById('s-discord-enabled');
+  if (cb) { cb.checked = discordEnabled; onDiscordEnabledChange(); }
   document.getElementById('s-discord-client-id').value  = data.discord_client_id  || '';
   document.getElementById('s-discord-client-secret').value = '';
   if (data.discord_client_secret === '***') {
@@ -622,12 +625,20 @@ function showStatus(elId, msg, ok = true) {
 }
 
 // Auto-remplir l'URI de callback depuis l'URL du navigateur
+function onDiscordEnabledChange() {
+  const enabled = document.getElementById('s-discord-enabled')?.checked;
+  const body = document.getElementById('discord-settings-body');
+  if (body) body.style.opacity = enabled ? '1' : '0.4';
+  if (body) body.style.pointerEvents = enabled ? '' : 'none';
+}
+
 document.getElementById('btn-fill-redirect').addEventListener('click', () => {
   document.getElementById('s-discord-redirect-uri').value = window.location.origin + '/auth/discord/callback';
 });
 
 document.getElementById('btn-save-discord').addEventListener('click', async () => {
   const payload = {
+    discord_enabled:      document.getElementById('s-discord-enabled')?.checked ? '1' : '0',
     discord_client_id:    document.getElementById('s-discord-client-id').value.trim(),
     discord_redirect_uri: document.getElementById('s-discord-redirect-uri').value.trim(),
     discord_guild_id:     document.getElementById('s-discord-guild-id').value.trim(),
