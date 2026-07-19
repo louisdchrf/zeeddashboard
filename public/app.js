@@ -1080,7 +1080,7 @@ function populateOrderAssigneeFilter() {
   const sel = document.getElementById('filter-order-assignee');
   if (!sel) return;
   const current = sel.value;
-  const filtered = allUsers.filter(u => !u.is_admin && u.discord_id !== '__admin__' && u.discord_id !== 'local');
+  const filtered = allUsers.filter(u => u.discord_id !== '__admin__');
   sel.innerHTML = '<option value="">Tous les membres</option>' +
     filtered.map(u => `<option value="${u.id}" ${String(u.id) === current ? 'selected' : ''}>${escapeHtml(u.username)}</option>`).join('');
 }
@@ -1372,7 +1372,7 @@ async function loadOrderHistory() {
 
 function populateAssigneeCheckboxes(selectedIds = []) {
   const container = document.getElementById('o-assignees');
-  const eligible = allUsers.filter(u => !u.is_admin && u.discord_id !== '__admin__' && u.discord_id !== 'local');
+  const eligible = allUsers.filter(u => u.discord_id !== '__admin__');
   container.innerHTML = eligible.length === 0
     ? '<p style="color:var(--text2);font-size:.85rem">Aucun utilisateur disponible.</p>'
     : eligible.map(u => `
@@ -1576,7 +1576,7 @@ function openStocksModal(itemId) {
   for (const s of (item.stocks || [])) stockMap[s.user_id] = s;
 
   const rows = document.getElementById('inv-stocks-rows');
-  const members = allUsers.filter(u => !u.is_admin && u.discord_id !== '__admin__' && u.discord_id !== 'local');
+  const members = allUsers.filter(u => u.discord_id !== '__admin__');
   rows.innerHTML = members.map(u => {
     const s = stockMap[u.id];
     let meta = '';
@@ -1817,7 +1817,7 @@ async function loadAdminUsers() {
 
   wrap.innerHTML = users.map(u => {
     const isLocal   = u.discord_id === '__admin__';
-    const isRealDiscord = u.discord_id && u.discord_id !== '__admin__' && u.discord_id !== 'local';
+    const isRealDiscord = u.discord_id && u.discord_id !== '__admin__';
     const avatarUrl = u.avatar && isRealDiscord
       ? `https://cdn.discordapp.com/avatars/${u.discord_id}/${u.avatar}.png?size=64`
       : isRealDiscord
