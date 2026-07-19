@@ -1054,8 +1054,9 @@ function populateOrderAssigneeFilter() {
   const sel = document.getElementById('filter-order-assignee');
   if (!sel) return;
   const current = sel.value;
+  const filtered = allUsers.filter(u => !u.is_admin && u.discord_id !== '__admin__' && u.discord_id !== 'local');
   sel.innerHTML = '<option value="">Tous les membres</option>' +
-    allUsers.map(u => `<option value="${u.id}" ${String(u.id) === current ? 'selected' : ''}>${escapeHtml(u.username)}</option>`).join('');
+    filtered.map(u => `<option value="${u.id}" ${String(u.id) === current ? 'selected' : ''}>${escapeHtml(u.username)}</option>`).join('');
 }
 
 function renderOrders() {
