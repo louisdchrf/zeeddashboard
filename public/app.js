@@ -1686,7 +1686,13 @@ function updateNotifyBtn() {
   renderInventory();
   await loadRecipes();
   renderRecipes();
-  if (user.is_admin) await loadSettings();
+  if (user.is_admin) {
+    await loadSettings();
+    // Masquer changement de mot de passe pour les admins Discord (pas de mot de passe local)
+    const isLocalAdmin = user.discord_id === '__admin__';
+    const pwSection = document.getElementById('section-password');
+    if (pwSection) pwSection.style.display = isLocalAdmin ? '' : 'none';
+  }
   initNotifyToggle(user);
   initSocket();
 })();
