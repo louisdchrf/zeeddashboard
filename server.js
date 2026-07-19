@@ -226,9 +226,10 @@ app.get('/auth/discord/callback', async (req, res) => {
       } catch (_) {}
     }
 
-    const existing = db.prepare('SELECT id FROM users WHERE discord_id=?').get(user.id);
+    const existing = db.prepare('SELECT id, banned FROM users WHERE discord_id=?').get(user.id);
     let userId;
     if (existing) {
+      if (existing.banned) return res.redirect('/?error=banned');
       db.prepare('UPDATE users SET username=?, avatar=? WHERE discord_id=?').run(displayName, user.avatar, user.id);
       userId = existing.id;
     } else {
