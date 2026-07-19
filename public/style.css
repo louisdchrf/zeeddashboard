@@ -1937,3 +1937,33 @@ nav { display: flex; gap: 2px; }
 }
 .ev-by { color: var(--text2); font-size: 0.78rem; }
 .ev-time { color: var(--text2); font-size: 0.75rem; white-space: nowrap; }
+
+/* ── Simulateur matières premières (modal contrat) ───────────────────────── */
+.o-ingredients-preview {
+  background: var(--bg2);
+  border: 1px solid var(--border);
+  border-radius: var(--r-sm);
+  padding: 10px 14px;
+  margin-bottom: 14px;
+}
+.o-ing-title {
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: .06em;
+  text-transform: uppercase;
+  color: var(--text2);
+  margin-bottom: 8px;
+}
+.o-ing-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.o-ing-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 0.83rem;
+}
+.o-ing-name { color: var(--text); }
+.o-ing-qty  { color: var(--accent); font-weight: 600; }

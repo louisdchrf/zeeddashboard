@@ -1204,6 +1204,38 @@ function getOrderLines() {
   return lines;
 }
 
+function updateContractIngredientsPreview() {
+  const preview = document.getElementById('o-ingredients-preview');
+  const list    = document.getElementById('o-ing-list');
+  if (!preview || !list) return;
+
+  const lines = getOrderLines();
+  // Agréger les ingrédients nécessaires
+  const needed = {}; // ingredient_id → { name, qty }
+  for (const line of lines) {
+    const recipe = recipes.find(r => r.id === line.item_id);
+    if (!recipe || !recipe.ingredients?.length) continue;
+    for (const ing of recipe.ingredients) {
+      if (!needed[ing.id]) needed[ing.id] = { name: ing.name, qty: 0 };
+      needed[ing.id].qty += ing.quantity * line.quantity;
+    }
+  }
+
+  const entries = Object.values(needed);
+  if (entries.length === 0) {
+    preview.style.display = 'none';
+    return;
+  }
+  preview.style.display = '';
+  list.innerHTML = entries.map(e =>
+    `<div class="o-ing-row"><span class="o-ing-name">${escapeHtml(e.name)}</span><span class="o-ing-qty">×${e.qty}</span></div>`
+  ).join('');
+}
+
+// Mise à jour du simulateur en live sur chaque changement de ligne
+document.getElementById('o-lines-container').addEventListener('change', updateContractIngredientsPreview);
+document.getElementById('o-lines-container').addEventListener('input', updateContractIngredientsPreview);
+
 function switchOrderModalTab(tab) {
   document.getElementById('o-tab-details').style.display = tab === 'details' ? '' : 'none';
   document.getElementById('o-tab-history').style.display = tab === 'history' ? '' : 'none';
@@ -1306,6 +1338,7 @@ function openNewOrderModal() {
   document.querySelectorAll('.o-line-item, .o-line-qty').forEach(el => { el.disabled = false; });
   populateAllLineSelects();
   setOrderLines([]);
+  updateContractIngredientsPreview();
   populateAssigneeCheckboxes();
   document.getElementById('modal-order').style.display = 'flex';
 }
@@ -1340,6 +1373,7 @@ function openEditOrderModal(id) {
   // Lignes
   populateAllLineSelects();
   setOrderLines(o.lines || []);
+  updateContractIngredientsPreview();
   document.querySelectorAll('.o-line-item, .o-line-qty').forEach(el => { el.disabled = !canAct; });
 
   populateAssigneeCheckboxes(o.assignees.map(u => u.id));
