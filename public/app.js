@@ -1621,7 +1621,9 @@ function updateNotifyBtn() {
   await loadUsers();
   await loadInventory();
   await loadInvFavorites();
+  renderInventory();
   await loadRecipes();
+  renderRecipes();
   if (user.is_admin) await loadSettings();
   initNotifyToggle(user);
   initSocket();
