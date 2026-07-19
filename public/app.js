@@ -746,6 +746,7 @@ setInterval(async () => {
 let inventory = [];
 // Favoris inventaire (stockés en base, par compte)
 let invFavorites = new Set();
+let invFavoritesOrder = [];
 let invCollapsed = new Set(JSON.parse(localStorage.getItem('inv_collapsed') || '[]'));
 
 function toggleInvSection(key) {
@@ -757,15 +758,18 @@ function toggleInvSection(key) {
 
 async function loadInvFavorites() {
   const ids = await api.get('/api/inventory/favorites') || [];
+  invFavoritesOrder = ids;
   invFavorites = new Set(ids);
 }
 
 async function toggleFavorite(itemId) {
   if (invFavorites.has(itemId)) {
     invFavorites.delete(itemId);
+    invFavoritesOrder = invFavoritesOrder.filter(id => id !== itemId);
     await api.delete(`/api/inventory/favorites/${itemId}`);
   } else {
     invFavorites.add(itemId);
+    invFavoritesOrder.push(itemId);
     await api.post(`/api/inventory/favorites/${itemId}`, {});
   }
   renderInventory();
@@ -834,7 +838,7 @@ function renderInventory() {
   }
 
   // Section Favoris en premier
-  const favItems = inventory.filter(i => favs.has(i.id));
+  const favItems = invFavoritesOrder.map(id => inventory.find(i => i.id === id)).filter(Boolean);
   if (favItems.length > 0) {
     html += renderSection('__favs__', '★ Favoris', favItems, 'inv-section-fav');
   }
@@ -1166,36 +1170,65 @@ function populateAllLineSelects() {
   });
 }
 
+function createLineRow(idx, l = null) {
+  const row = document.createElement('div');
+  row.className = 'o-line-row';
+  row.dataset.idx = idx;
+  const ls = l?.status || 'pending';
+  const opts = '<option value="">— Choisir —</option>' +
+    orderItems.filter(x => x.orderable !== 0).map(x =>
+      `<option value="${x.id}"${l?.item_id == x.id ? ' selected' : ''}>${escapeHtml(x.name)}</option>`
+    ).join('');
+  row.innerHTML = `
+    <select class="o-line-item" data-idx="${idx}">${opts}</select>
+    <input type="number" class="o-line-qty" data-idx="${idx}" value="${l?.quantity ?? 1}" min="1"/>
+    <select class="o-line-status" data-idx="${idx}" onchange="onLineStatusChange(this)">
+      <option value="pending"${ls==='pending'?' selected':''}>⏳ En attente</option>
+      <option value="in_progress"${ls==='in_progress'?' selected':''}>🔄 En cours</option>
+      <option value="to_deliver"${ls==='to_deliver'?' selected':''}>📦 À livrer</option>
+      <option value="done"${ls==='done'?' selected':''}>✅ Terminée</option>
+    </select>
+    <input type="number" class="o-line-price" data-idx="${idx}" placeholder="Prix $" min="0"
+      oninput="updateGlobalSalePrice()" value="${l?.sale_price ?? ''}" style="display:${ls==='done'?'':'none'}"/>
+    <button type="button" class="btn-remove-line" onclick="removeOrderLine(this)" title="Supprimer">✕</button>
+  `;
+  return row;
+}
+
+let _lineIdx = 0;
+
 function setOrderLines(lines = []) {
-  for (let i = 0; i < 5; i++) {
-    const sel    = document.querySelector(`.o-line-item[data-idx="${i}"]`);
-    const qty    = document.querySelector(`.o-line-qty[data-idx="${i}"]`);
-    const status = document.querySelector(`.o-line-status[data-idx="${i}"]`);
-    const price  = document.querySelector(`.o-line-price[data-idx="${i}"]`);
-    const l = lines[i] || null;
-    if (sel)    sel.value    = l?.item_id || '';
-    if (qty)    qty.value    = l?.quantity ?? 1;
-    if (status) status.value = l?.status || 'pending';
-    if (price) {
-      price.value = l?.sale_price ?? '';
-      price.style.display = (l?.status === 'done') ? '' : 'none';
-    }
-  }
+  const container = document.getElementById('o-lines-container');
+  container.innerHTML = '';
+  _lineIdx = 0;
+  const toRender = lines.length > 0 ? lines : [null];
+  for (const l of toRender) container.appendChild(createLineRow(_lineIdx++, l));
+}
+
+function addOrderLine() {
+  document.getElementById('o-lines-container').appendChild(createLineRow(_lineIdx++));
+  updateGlobalSalePrice();
+  updateContractIngredientsPreview();
+}
+
+function removeOrderLine(btn) {
+  const container = document.getElementById('o-lines-container');
+  if (container.children.length <= 1) return;
+  btn.closest('.o-line-row').remove();
+  updateGlobalSalePrice();
+  updateContractIngredientsPreview();
 }
 
 function getOrderLines() {
   const lines = [];
-  for (let i = 0; i < 5; i++) {
-    const sel    = document.querySelector(`.o-line-item[data-idx="${i}"]`);
-    const qty    = document.querySelector(`.o-line-qty[data-idx="${i}"]`);
-    const status = document.querySelector(`.o-line-status[data-idx="${i}"]`);
-    const price  = document.querySelector(`.o-line-price[data-idx="${i}"]`);
-    const item_id = parseInt(sel?.value);
-    if (!item_id) continue;
-    const ls = status?.value || 'pending';
-    const lp = ls === 'done' && price?.value !== '' ? (parseInt(price.value) || null) : null;
-    lines.push({ item_id, quantity: parseInt(qty?.value) || 1, status: ls, sale_price: lp });
-  }
+  document.querySelectorAll('#o-lines-container .o-line-row').forEach(row => {
+    const item_id = parseInt(row.querySelector('.o-line-item')?.value);
+    if (!item_id) return;
+    const ls = row.querySelector('.o-line-status')?.value || 'pending';
+    const priceEl = row.querySelector('.o-line-price');
+    const lp = ls === 'done' && priceEl?.value !== '' ? (parseInt(priceEl.value) || null) : null;
+    lines.push({ item_id, quantity: parseInt(row.querySelector('.o-line-qty')?.value) || 1, status: ls, sale_price: lp });
+  });
   return lines;
 }
 
@@ -1203,17 +1236,12 @@ function updateGlobalSalePrice() {
   const spg = document.getElementById('o-sale-price-group');
   if (!spg) return;
   let total = 0;
-  for (let i = 0; i < 5; i++) {
-    const priceEl = document.querySelector(`.o-line-price[data-idx="${i}"]`);
-    if (priceEl && priceEl.style.display !== 'none') {
-      const v = parseInt(priceEl.value);
-      if (!isNaN(v)) total += v;
-    }
-  }
+  document.querySelectorAll('#o-lines-container .o-line-price').forEach(el => {
+    if (el.style.display !== 'none') { const v = parseInt(el.value); if (!isNaN(v)) total += v; }
+  });
   const gp = document.getElementById('o-sale-price');
   if (gp) gp.value = total > 0 ? total : '';
-  // Afficher le groupe dès qu'au moins une ligne est done
-  const anyDone = [...document.querySelectorAll('.o-line-status')].some(s => s.value === 'done');
+  const anyDone = [...document.querySelectorAll('#o-lines-container .o-line-status')].some(s => s.value === 'done');
   spg.style.display = anyDone ? '' : 'none';
 }
 
@@ -1367,8 +1395,7 @@ function openNewOrderModal() {
   const histBtn = document.getElementById('o-tab-history-btn');
   if (histBtn) histBtn.style.display = 'none';
   switchOrderModalTab('details');
-  document.querySelectorAll('.o-line-item, .o-line-qty').forEach(el => { el.disabled = false; });
-  populateAllLineSelects();
+  setOrderLines([]);
   setOrderLines([]);
   updateContractIngredientsPreview();
   populateAssigneeCheckboxes();
@@ -1409,7 +1436,8 @@ function openEditOrderModal(id) {
   setOrderLines(o.lines || []);
   updateGlobalSalePrice();
   updateContractIngredientsPreview();
-  document.querySelectorAll('.o-line-item, .o-line-qty').forEach(el => { el.disabled = !canAct; });
+  document.querySelectorAll('#o-lines-container select, #o-lines-container input').forEach(el => { el.disabled = !canAct; });
+  document.querySelectorAll('#o-lines-container .btn-remove-line').forEach(b => b.style.display = canAct ? '' : 'none');
 
   populateAssigneeCheckboxes(o.assignees.map(u => u.id));
   if (!canAct) document.querySelectorAll('#o-assignees input').forEach(cb => cb.disabled = true);

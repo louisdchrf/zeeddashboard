@@ -847,7 +847,7 @@ app.patch('/api/users/me/notify', (req, res) => {
 // ── Favoris inventaire ────────────────────────────────────────────────────────
 
 app.get('/api/inventory/favorites', (req, res) => {
-  const rows = db.prepare('SELECT item_id FROM inventory_favorites WHERE user_id=?').all(req.session.userId);
+  const rows = db.prepare('SELECT item_id FROM inventory_favorites WHERE user_id=? ORDER BY rowid ASC').all(req.session.userId);
   res.json(rows.map(r => r.item_id));
 });
 
