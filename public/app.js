@@ -1127,17 +1127,8 @@ function renderOrders() {
 }
 
 async function quickChangeStatus(orderId, newStatus, selectEl) {
-  let sale_price = null;
-  if (newStatus === 'done') {
-    const input = prompt('Prix de vente de la commande ($) :');
-    if (input === null) {
-      // Annulé — remettre l'ancienne valeur
-      const o = orders.find(x => x.id === orderId);
-      if (o) selectEl.value = o.status;
-      return;
-    }
-    sale_price = input.trim() !== '' ? parseInt(input) || null : null;
-  }
+  // Le prix est calculé depuis les lignes — pas besoin de le demander ici
+  const sale_price = null;
   selectEl.disabled = true;
   const r = await api.patch(`/api/orders/${orderId}/status`, { status: newStatus, sale_price });
   selectEl.disabled = false;
