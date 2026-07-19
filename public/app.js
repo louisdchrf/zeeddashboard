@@ -1833,8 +1833,10 @@ async function loadAdminUsers() {
           <div class="user-badges">${typeBadge}${adminBadge}${bannedBadge}</div>
         </div>
       </div>
-      <div class="user-stat">${u.order_count}</div>
-      <div class="user-stat">${u.plant_count}</div>
+      <div class="user-stats">
+        <div class="user-stat"><span>${u.order_count}</span> contrat${u.order_count !== 1 ? 's' : ''}</div>
+        <div class="user-stat"><span>${u.plant_count}</span> plant${u.plant_count !== 1 ? 's' : ''}</div>
+      </div>
       <div class="user-actions">${banBtn}${adminBtn}${delBtn}</div>
     </div>`;
   }).join('');
