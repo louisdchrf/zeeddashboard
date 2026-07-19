@@ -503,7 +503,7 @@
       </div>
       <div class="form-group" id="o-status-group" style="display:none">
         <label>Statut</label>
-        <select id="o-status" onchange="onOrderStatusChange(this.value)">
+        <select id="o-status" onchange="updateGlobalSalePrice()">
           <option value="pending">⏳ En attente</option>
           <option value="in_progress">🔄 En cours</option>
           <option value="to_deliver">📦 À livrer</option>

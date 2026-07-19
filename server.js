@@ -5,6 +5,23 @@ const session = require('express-session');
 const { scryptSync, randomBytes, timingSafeEqual, webcrypto } = require('crypto');
 const db = require('./db');
 
+// ── Rate limiter simple (login admin) ────────────────────────────────────────
+const loginAttempts = new Map();
+function checkRateLimit(req, res, max = 10, windowMs = 15 * 60_000) {
+  const ip  = req.ip || req.socket?.remoteAddress || 'unknown';
+  const now = Date.now();
+  const rec = loginAttempts.get(ip);
+  if (rec && now < rec.resetAt) {
+    if (rec.count >= max)
+      return res.status(429).json({ error: `Trop de tentatives. Réessaie dans ${Math.ceil((rec.resetAt - now) / 60000)} min.` });
+    rec.count++;
+  } else {
+    loginAttempts.set(ip, { count: 1, resetAt: now + windowMs });
+  }
+  return null;
+}
+setInterval(() => { const now = Date.now(); loginAttempts.forEach((v, k) => { if (now >= v.resetAt) loginAttempts.delete(k); }); }, 3_600_000);
+
 const app    = express();
 const server = http.createServer(app);
 const io     = new Server(server, { cors: { origin: false } });
@@ -135,6 +152,7 @@ app.post('/auth/setup', (req, res) => {
 
 // Connexion admin
 app.post('/auth/admin', (req, res) => {
+  const limited = checkRateLimit(req, res); if (limited) return;
   const storedHash = getSetting('admin_password_hash');
   const storedUser = getSetting('admin_username');
   if (!storedHash) return res.status(401).json({ error: 'Aucun admin configuré' });
@@ -192,7 +210,7 @@ app.get('/auth/discord/callback', async (req, res) => {
 
     // Pseudo affiché : surnom du serveur > display name global > username
     let displayName = user.global_name || user.username;
-    const guildId   = getSetting('discord_guild_id');
+    const guildId   = requiredGuildId;
     const botToken  = getSetting('discord_bot_token');
     if (guildId && botToken) {
       try {
@@ -765,10 +783,10 @@ app.get('/api/recipes', (_, res) => {
   for (const p of products) {
     p.ingredients = db.prepare(`
       SELECT i.id, i.name, r.quantity,
-             COALESCE(inv.quantity, 0) AS stock
+             COALESCE(inv.total, 0) AS stock
       FROM recipes r
       JOIN order_items i ON r.ingredient_id = i.id
-      LEFT JOIN inventory inv ON inv.item_id = i.id
+      LEFT JOIN (SELECT item_id, SUM(quantity) AS total FROM inventory_stock GROUP BY item_id) inv ON inv.item_id = i.id
       WHERE r.product_id = ?
       ORDER BY i.name
     `).all(p.id);
@@ -813,18 +831,18 @@ app.put('/api/inventory/:itemId', (req, res) => {
   const item = db.prepare('SELECT id FROM order_items WHERE id=?').get(req.params.itemId);
   if (!item) return res.status(404).json({ error: 'Article introuvable' });
 
-  const current = db.prepare('SELECT quantity FROM inventory_stock WHERE item_id=? AND user_id=?')
-    .get(req.params.itemId, req.session.userId);
-  const newQty = Math.max(0, (current?.quantity || 0) + delta);
-
+  // Update atomique (évite la race condition read-then-write)
   db.prepare(`
     INSERT INTO inventory_stock (item_id, user_id, quantity, updated_at, updated_by)
-    VALUES (?, ?, ?, datetime('now'), ?)
+    VALUES (?, ?, MAX(0, ?), datetime('now'), ?)
     ON CONFLICT(item_id, user_id) DO UPDATE SET
-      quantity   = excluded.quantity,
-      updated_at = excluded.updated_at,
-      updated_by = excluded.updated_by
-  `).run(req.params.itemId, req.session.userId, newQty, req.session.userId);
+      quantity   = MAX(0, inventory_stock.quantity + ?),
+      updated_at = datetime('now'),
+      updated_by = ?
+  `).run(req.params.itemId, req.session.userId, delta, req.session.userId, delta, req.session.userId);
+
+  const newQty = db.prepare('SELECT quantity FROM inventory_stock WHERE item_id=? AND user_id=?')
+    .get(req.params.itemId, req.session.userId)?.quantity || 0;
 
   db.prepare(`
     INSERT INTO stock_movements (item_id, user_id, delta, qty_after, created_at)
@@ -1114,17 +1132,11 @@ app.patch('/api/orders/:id/status', async (req, res) => {
   res.json({ success: true });
 });
 
-app.post('/api/orders/:id/progress', (req, res) => {
-  const order = db.prepare('SELECT * FROM orders WHERE id=?').get(req.params.id);
-  if (!order) return res.status(404).json({ error: 'Introuvable' });
   db.prepare("UPDATE orders SET status='in_progress' WHERE id=? AND status='pending'").run(req.params.id);
   broadcast('orders:changed', {});
   res.json({ success: true });
 });
 
-app.post('/api/orders/:id/complete', (req, res) => {
-  const order = db.prepare('SELECT * FROM orders WHERE id=?').get(req.params.id);
-  if (!order) return res.status(404).json({ error: 'Introuvable' });
   const user = db.prepare('SELECT is_admin FROM users WHERE id=?').get(req.session.userId);
   if (!user?.is_admin && order.created_by !== req.session.userId)
     return res.status(403).json({ error: 'Non autorisé' });
@@ -1144,7 +1156,6 @@ app.delete('/api/orders/:id', (req, res) => {
 // ── Fin des routes ────────────────────────────────────────────────────────────
 
 // (ancien onglet Contrats supprimé — remplacé par multi-lignes sur les ordres)
-if (false) app.get('/api/contracts', (_, res) => {
   const contracts = db.prepare(`
     SELECT c.*, u.username AS created_by_name,
            (SELECT COUNT(*) FROM contract_lines WHERE contract_id = c.id) AS line_count,

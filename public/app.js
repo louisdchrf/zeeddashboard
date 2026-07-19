@@ -1167,9 +1167,6 @@ function renderOrderItemsList() {
       `).join('');
 }
 
-function populateOrderItemSelect(selectedId = null) {
-  // legacy – plus utilisé mais conservé au cas où
-}
 
 function populateAllLineSelects() {
   const opts = '<option value="">— Choisir —</option>' +
@@ -1365,40 +1362,6 @@ function populateAssigneeCheckboxes(selectedIds = []) {
       `).join('');
 }
 
-function updateOrderIngredientsPreview() {
-  const preview = document.getElementById('order-ingredients-preview');
-  const rows    = document.getElementById('oip-rows');
-  if (!preview || !rows) return;
-
-  const itemId  = parseInt(document.getElementById('o-item')?.value);
-  const qty     = parseInt(document.getElementById('o-quantity')?.value) || 1;
-
-  // Trouver la recette correspondant au produit sélectionné
-  const recipe = recipes.find(r => r.id === itemId);
-
-  if (!recipe || !recipe.ingredients || recipe.ingredients.length === 0) {
-    preview.style.display = 'none';
-    return;
-  }
-
-  preview.style.display = 'block';
-
-  let allOk = true;
-  rows.innerHTML = recipe.ingredients.map(ing => {
-    const needed = ing.quantity * qty;
-    const ok = ing.stock >= needed;
-    if (!ok) allOk = false;
-    return `<div class="oip-row">
-      <span class="oip-ing-name">${escapeHtml(ing.name)}</span>
-      <span class="oip-ing-qty ${ok ? 'oip-ok' : 'oip-low'}">
-        ${needed} <span class="oip-stock">(stock : ${ing.stock})</span>
-      </span>
-    </div>`;
-  }).join('');
-
-  preview.className = `order-ingredients-preview ${allOk ? 'oip-feasible' : 'oip-infeasible'}`;
-}
-
 function openNewOrderModal() {
   document.getElementById('o-id').value = '';
   document.getElementById('order-modal-title').textContent = 'Nouveau contrat';
@@ -1411,7 +1374,6 @@ function openNewOrderModal() {
   const histBtn = document.getElementById('o-tab-history-btn');
   if (histBtn) histBtn.style.display = 'none';
   switchOrderModalTab('details');
-  setOrderLines([]);
   setOrderLines([]);
   updateContractIngredientsPreview();
   populateAssigneeCheckboxes();
@@ -1461,10 +1423,6 @@ function openEditOrderModal(id) {
   document.getElementById('modal-order').style.display = 'flex';
 }
 
-function onOrderStatusChange(val) {
-  // Le groupe prix est géré par updateGlobalSalePrice() selon les lignes
-}
-
 function closeOrderModal() {
   document.getElementById('modal-order').style.display = 'none';
 }
@@ -1491,8 +1449,6 @@ document.getElementById('btn-reset-order-filters').addEventListener('click', () 
 });
 
 // Preview ingrédients live à la création
-document.getElementById('o-item')?.addEventListener('change', updateOrderIngredientsPreview);
-document.getElementById('o-quantity')?.addEventListener('input', updateOrderIngredientsPreview);
 
 
 document.getElementById('confirm-order').addEventListener('click', async () => {
@@ -1519,21 +1475,6 @@ document.getElementById('confirm-order').addEventListener('click', async () => {
   await loadOrders();
   renderOrders();
 });
-
-async function progressOrder(id) {
-  const r = await api.post(`/api/orders/${id}/progress`, {});
-  if (r?.error) return alert(r.error);
-  await loadOrders();
-  renderOrders();
-}
-
-async function completeOrder(id) {
-  if (!confirm('Marquer cette commande comme terminée ?')) return;
-  const r = await api.post(`/api/orders/${id}/complete`, {});
-  if (r?.error) return alert(r.error);
-  await loadOrders();
-  renderOrders();
-}
 
 async function deleteOrder(id) {
   if (!confirm('Supprimer cette commande ?')) return;
@@ -1562,7 +1503,6 @@ document.getElementById('btn-add-order-item').addEventListener('click', async ()
   document.getElementById('oi-name').value = '';
   await loadOrderItems();
   renderOrderItemsList();
-  populateOrderItemSelect();
 });
 
 document.getElementById('oi-name').addEventListener('keydown', (e) => {
@@ -1590,7 +1530,6 @@ document.getElementById('confirm-order-item-edit').addEventListener('click', asy
   document.getElementById('modal-order-item-edit').style.display = 'none';
   await loadOrderItems();
   renderOrderItemsList();
-  populateOrderItemSelect();
 });
 
 async function deleteOrderItem(id) {
@@ -1599,7 +1538,6 @@ async function deleteOrderItem(id) {
   if (r?.error) return alert(r.error);
   await loadOrderItems();
   renderOrderItemsList();
-  populateOrderItemSelect();
 }
 
 // ── Modal : attribution du stock par membre ───────────────────────────────────

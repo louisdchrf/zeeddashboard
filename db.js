@@ -110,7 +110,6 @@ try { db.exec(`ALTER TABLE orders ADD COLUMN client TEXT DEFAULT NULL`); } catch
 try { db.exec(`ALTER TABLE order_items ADD COLUMN location TEXT DEFAULT NULL`); } catch (_) {}
 try { db.exec(`ALTER TABLE users ADD COLUMN discord_notify INTEGER DEFAULT 1`); } catch (_) {}
 try { db.exec(`ALTER TABLE orders ADD COLUMN sale_price INTEGER DEFAULT NULL`); } catch (_) {}
-try { db.exec(`ALTER TABLE inventory_stock ADD COLUMN updated_by INTEGER REFERENCES users(id)`); } catch (_) {}
 try { db.exec(`ALTER TABLE order_lines ADD COLUMN status TEXT NOT NULL DEFAULT 'pending'`); } catch (_) {}
 try { db.exec(`ALTER TABLE order_lines ADD COLUMN sale_price INTEGER DEFAULT NULL`); } catch (_) {}
 
@@ -199,29 +198,11 @@ db.exec(`
     user_id    INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
     quantity   INTEGER NOT NULL DEFAULT 0,
     updated_at TEXT NOT NULL DEFAULT (datetime('now')),
+    updated_by INTEGER REFERENCES users(id),
     UNIQUE(item_id, user_id)
   );
 
-  CREATE TABLE IF NOT EXISTS contracts (
-    id         INTEGER PRIMARY KEY AUTOINCREMENT,
-    name       TEXT NOT NULL,
-    client     TEXT,
-    deadline   TEXT,
-    status     TEXT NOT NULL DEFAULT 'active',
-    notes      TEXT DEFAULT '',
-    created_by INTEGER REFERENCES users(id),
-    created_at TEXT NOT NULL DEFAULT (datetime('now')),
-    closed_at  TEXT
-  );
-
-  CREATE TABLE IF NOT EXISTS contract_lines (
-    id            INTEGER PRIMARY KEY AUTOINCREMENT,
-    contract_id   INTEGER NOT NULL REFERENCES contracts(id) ON DELETE CASCADE,
-    product_name  TEXT NOT NULL,
-    qty_ordered   INTEGER NOT NULL DEFAULT 0,
-    qty_delivered INTEGER NOT NULL DEFAULT 0,
-    unit_price    INTEGER NOT NULL DEFAULT 0
-  );
+  -- Tables contracts/contract_lines supprimées (remplacées par orders/order_lines)
 `);
 
 // Valeur par défaut = même que l'extérieur pour les marchandises existantes
