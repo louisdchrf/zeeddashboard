@@ -1397,7 +1397,9 @@ function openNewOrderModal() {
   switchOrderModalTab('details');
   setOrderLines([]);
   updateContractIngredientsPreview();
-  populateAssigneeCheckboxes();
+  // Pré-cocher le compte courant si non-admin
+  const preSelected = (!currentUser?.is_admin && currentUser?.id) ? [currentUser.id] : [];
+  populateAssigneeCheckboxes(preSelected);
   document.getElementById('modal-order').style.display = 'flex';
 }
 

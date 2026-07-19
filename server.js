@@ -916,6 +916,11 @@ app.patch('/api/users/me/notify', (req, res) => {
 
 
 // ── Admin : gestion des utilisateurs ─────────────────────────────────────────
+// DEBUG TEMPORAIRE — à supprimer
+app.get('/api/admin/debug-users', requireAdmin, (_, res) => {
+  res.json(db.prepare('SELECT id, username, discord_id, is_admin, banned FROM users ORDER BY id').all());
+});
+
 
 app.get('/api/admin/users', requireAdmin, (_, res) => {
   const users = db.prepare(`
