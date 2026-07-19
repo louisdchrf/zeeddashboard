@@ -91,6 +91,8 @@ function verifyPassword(password, stored) {
   return timingSafeEqual(computed, Buffer.from(hash, 'hex'));
 }
 
+function discordNotifEnabled() { return getSetting('discord_notif_enabled') !== '0'; }
+
 function getSetting(key) {
   return db.prepare('SELECT value FROM settings WHERE key=?').get(key)?.value ?? null;
 }
@@ -105,8 +107,7 @@ function setSetting(key, value) {
 app.get('/auth/config', (_, res) => {
   const adminExists       = !!getSetting('admin_password_hash');
   const discordConfigured = !!getSetting('discord_client_id');
-  const discordEnabled    = getSetting('discord_enabled') !== '0';
-  res.json({ adminExists, discordConfigured, discordEnabled, version: process.env.BUILD_VERSION || 'dev' });
+  res.json({ adminExists, discordConfigured, version: process.env.BUILD_VERSION || 'dev' });
 });
 
 // Première configuration — création du compte admin
@@ -149,7 +150,6 @@ app.post('/auth/admin', (req, res) => {
 
 // Connexion Discord — credentials depuis la DB (configurés par l'admin)
 app.get('/auth/discord', (req, res) => {
-  if (getSetting('discord_enabled') === '0') return res.status(403).send('Connexion Discord désactivée');
   const clientId    = getSetting('discord_client_id');
   const redirectUri = getSetting('discord_redirect_uri') || `${req.protocol}://${req.get('host')}/auth/discord/callback`;
   if (!clientId) return res.status(500).send('Discord non configuré — connecte-toi en admin et va dans Paramètres.');
@@ -158,7 +158,6 @@ app.get('/auth/discord', (req, res) => {
 });
 
 app.get('/auth/discord/callback', async (req, res) => {
-  if (getSetting('discord_enabled') === '0') return res.status(403).send('Connexion Discord désactivée');
   const { code } = req.query;
   if (!code) return res.redirect('/?error=no_code');
   const clientId     = getSetting('discord_client_id');
@@ -1080,8 +1079,8 @@ app.put('/api/orders/:id', (req, res) => {
   // Patch du message Discord si le statut a changé
   const token     = getSetting('discord_bot_token');
   const channelId = getSetting('discord_orders_channel_id') || getSetting('discord_notify_channel_id');
-  if (token && channelId && newStatus !== order.status) {
-    patchOrderMessage(req.params.id, token, channelId).catch(() => {});
+  if (token && channelId && newStatus !== order.status && getSetting('discord_notif_enabled') !== '0') {
+    if (discordNotifEnabled()) patchOrderMessage(req.params.id, token, channelId).catch(() => {});
   }
 
   res.json({ success: true });
@@ -1109,7 +1108,7 @@ app.patch('/api/orders/:id/status', async (req, res) => {
   const token     = getSetting('discord_bot_token');
   const channelId = getSetting('discord_orders_channel_id') || getSetting('discord_notify_channel_id');
   if (token && channelId && order.discord_message_id) {
-    patchOrderMessage(req.params.id, token, channelId).catch(() => {});
+    if (discordNotifEnabled()) patchOrderMessage(req.params.id, token, channelId).catch(() => {});
   }
 
   res.json({ success: true });

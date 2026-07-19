@@ -264,9 +264,6 @@ async function loadPoints() {
 async function loadSettings() {
   const data = await api.get('/api/settings');
   if (!data) return;
-  const discordEnabled = data.discord_enabled !== '0';
-  const cb = document.getElementById('s-discord-enabled');
-  if (cb) { cb.checked = discordEnabled; onDiscordEnabledChange(); }
   document.getElementById('s-discord-client-id').value  = data.discord_client_id  || '';
   document.getElementById('s-discord-client-secret').value = '';
   if (data.discord_client_secret === '***') {
@@ -280,6 +277,9 @@ async function loadSettings() {
   if (data.discord_bot_token === '***') {
     document.getElementById('s-bot-token').placeholder = '(défini — laisser vide pour conserver)';
   }
+  const notifEnabled = data.discord_notif_enabled !== '0';
+  const notifCb = document.getElementById('s-discord-notif-enabled');
+  if (notifCb) { notifCb.checked = notifEnabled; onDiscordNotifEnabledChange(); }
 }
 
 function populateMerchSelect() {
@@ -625,9 +625,9 @@ function showStatus(elId, msg, ok = true) {
 }
 
 // Auto-remplir l'URI de callback depuis l'URL du navigateur
-function onDiscordEnabledChange() {
-  const enabled = document.getElementById('s-discord-enabled')?.checked;
-  const body = document.getElementById('discord-settings-body');
+function onDiscordNotifEnabledChange() {
+  const enabled = document.getElementById('s-discord-notif-enabled')?.checked;
+  const body = document.getElementById('discord-notif-body');
   if (body) body.style.opacity = enabled ? '1' : '0.4';
   if (body) body.style.pointerEvents = enabled ? '' : 'none';
 }
@@ -638,7 +638,6 @@ document.getElementById('btn-fill-redirect').addEventListener('click', () => {
 
 document.getElementById('btn-save-discord').addEventListener('click', async () => {
   const payload = {
-    discord_enabled:      document.getElementById('s-discord-enabled')?.checked ? '1' : '0',
     discord_client_id:    document.getElementById('s-discord-client-id').value.trim(),
     discord_redirect_uri: document.getElementById('s-discord-redirect-uri').value.trim(),
     discord_guild_id:     document.getElementById('s-discord-guild-id').value.trim(),
@@ -652,6 +651,7 @@ document.getElementById('btn-save-discord').addEventListener('click', async () =
 
 document.getElementById('btn-save-bot').addEventListener('click', async () => {
   const payload = {
+    discord_notif_enabled:     document.getElementById('s-discord-notif-enabled')?.checked ? '1' : '0',
     discord_notify_channel_id: document.getElementById('s-notify-channel-id').value.trim(),
     discord_orders_channel_id: document.getElementById('s-orders-channel-id').value.trim(),
     discord_public_key:        document.getElementById('s-public-key').value.trim(),
