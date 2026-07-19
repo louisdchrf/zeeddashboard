@@ -1108,8 +1108,9 @@ function renderOrders() {
 
         const stopProp = `event.stopPropagation();`;
         const actions = `<button class="btn-icon danger" onclick="${stopProp}deleteOrder(${o.id})">🗑️</button>`;
-        const priceCell = o.status === 'done'
-          ? (o.sale_price != null ? `<span class="sale-price-tag">$${o.sale_price.toLocaleString('fr-FR')}</span>` : '<span style="color:var(--text2)">—</span>')
+        const lineTotal = (o.lines || []).reduce((s, l) => s + (l.sale_price || 0), 0);
+        const priceCell = lineTotal > 0
+          ? `<span class="sale-price-tag">$${lineTotal.toLocaleString('fr-FR')}</span>`
           : '';
 
         return `<tr class="${o.status === 'done' ? 'order-done' : ''} order-row" onclick="openEditOrderModal(${o.id})">
