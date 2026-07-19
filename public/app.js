@@ -1219,7 +1219,7 @@ function getOrderLines() {
 
 function updateGlobalSalePrice() {
   const spg = document.getElementById('o-sale-price-group');
-  if (!spg || spg.style.display === 'none') return;
+  if (!spg) return;
   let total = 0;
   for (let i = 0; i < 5; i++) {
     const priceEl = document.querySelector(`.o-line-price[data-idx="${i}"]`);
@@ -1230,6 +1230,9 @@ function updateGlobalSalePrice() {
   }
   const gp = document.getElementById('o-sale-price');
   if (gp) gp.value = total > 0 ? total : '';
+  // Afficher le groupe dès qu'au moins une ligne est done
+  const anyDone = [...document.querySelectorAll('.o-line-status')].some(s => s.value === 'done');
+  spg.style.display = anyDone ? '' : 'none';
 }
 
 function onLineStatusChange(selectEl) {
@@ -1285,8 +1288,9 @@ async function loadOrderHistory() {
   const el = document.getElementById('o-events-list');
   if (!el) return;
   const labels = {
-    created:        { icon: '📋', text: 'Contrat créé' },
-    status_changed: { icon: '🔄', text: null },
+    created:             { icon: '📋', text: 'Contrat créé' },
+    status_changed:      { icon: '🔄', text: null },
+    line_status_changed: { icon: '📦', text: null },
   };
   const statusText = {
     pending:     '⏳ En attente',
@@ -1300,7 +1304,18 @@ async function loadOrderHistory() {
         const d = new Date(e.created_at + 'Z');
         const dateStr = d.toLocaleDateString('fr-FR') + ' ' + d.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
         const info = labels[e.event_type] || { icon: '•', text: e.event_type };
-        const label = info.text || (e.new_status ? `Passé → ${statusText[e.new_status] || e.new_status}` : '');
+        let label;
+        if (info.text) {
+          label = info.text;
+        } else if (e.event_type === 'line_status_changed' && e.new_status) {
+          // new_status = "Nom article: statut_key"
+          const parts = e.new_status.split(': ');
+          const sKey = parts.pop();
+          const article = parts.join(': ');
+          label = `${article} → ${statusText[sKey] || sKey}`;
+        } else {
+          label = e.new_status ? `Passé → ${statusText[e.new_status] || e.new_status}` : '';
+        }
         const by = e.user_name ? ` <span class="ev-by">par ${escapeHtml(e.user_name)}</span>` : '';
         return `<div class="order-event-row">
           <span class="ev-icon">${info.icon}</span>
@@ -1393,11 +1408,13 @@ function openEditOrderModal(id) {
   document.getElementById('o-status-group').style.display = '';
   document.getElementById('o-status').value = o.status || 'pending';
 
-  // Prix de vente
+  // Prix de vente — afficher si au moins une ligne est done, init avec somme lignes
   const salePriceGroup = document.getElementById('o-sale-price-group');
   if (salePriceGroup) {
-    salePriceGroup.style.display = o.status === 'done' ? '' : 'none';
-    document.getElementById('o-sale-price').value = o.sale_price ?? '';
+    const anyLineDone = (o.lines || []).some(l => l.status === 'done');
+    salePriceGroup.style.display = anyLineDone ? '' : 'none';
+    const lineSum = (o.lines || []).reduce((s, l) => s + (l.sale_price || 0), 0);
+    document.getElementById('o-sale-price').value = lineSum > 0 ? lineSum : (o.sale_price ?? '');
   }
 
   // Historique
@@ -1408,6 +1425,7 @@ function openEditOrderModal(id) {
   // Lignes
   populateAllLineSelects();
   setOrderLines(o.lines || []);
+  updateGlobalSalePrice();
   updateContractIngredientsPreview();
   document.querySelectorAll('.o-line-item, .o-line-qty').forEach(el => { el.disabled = !canAct; });
 
@@ -1418,8 +1436,7 @@ function openEditOrderModal(id) {
 }
 
 function onOrderStatusChange(val) {
-  const group = document.getElementById('o-sale-price-group');
-  if (group) group.style.display = val === 'done' ? '' : 'none';
+  // Le groupe prix est géré par updateGlobalSalePrice() selon les lignes
 }
 
 function closeOrderModal() {

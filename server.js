@@ -1033,17 +1033,29 @@ app.put('/api/orders/:id', (req, res) => {
 
   if (Array.isArray(lines)) {
     const validLines = lines.filter(l => l.item_id && parseInt(l.item_id)).slice(0, 5);
+    // Sauvegarder les anciens statuts par item_id avant suppression
+    const oldLines = db.prepare('SELECT item_id, status FROM order_lines WHERE order_id=?').all(req.params.id);
+    const oldStatusMap = {};
+    for (const ol of oldLines) oldStatusMap[ol.item_id] = ol.status;
     db.prepare('DELETE FROM order_lines WHERE order_id=?').run(req.params.id);
     const insLine = db.prepare('INSERT INTO order_lines (order_id, item_id, quantity, status, sale_price) VALUES (?, ?, ?, ?, ?)');
-    for (const { item_id, quantity, status: ls = 'pending', sale_price: lp = null } of validLines)
+    for (const { item_id, quantity, status: ls = 'pending', sale_price: lp = null } of validLines) {
       insLine.run(req.params.id, parseInt(item_id), Math.max(1, parseInt(quantity) || 1), ls, lp != null ? parseInt(lp) : null);
+      // Log si statut de la ligne a changé
+      const prevStatus = oldStatusMap[parseInt(item_id)];
+      if (prevStatus !== undefined && prevStatus !== ls) {
+        const itemName = db.prepare('SELECT name FROM order_items WHERE id=?').get(parseInt(item_id))?.name || `#${item_id}`;
+        db.prepare("INSERT INTO order_events (order_id, event_type, new_status, user_id) VALUES (?, 'line_status_changed', ?, ?)")
+          .run(req.params.id, `${itemName}: ${ls}`, req.session.userId);
+      }
+    }
   }
   if (Array.isArray(user_ids)) {
     db.prepare('DELETE FROM order_assignments WHERE order_id=?').run(req.params.id);
     const ins = db.prepare('INSERT OR IGNORE INTO order_assignments (order_id, user_id) VALUES (?, ?)');
     for (const uid of user_ids) ins.run(req.params.id, uid);
   }
-  // Log changement de statut si nécessaire
+  // Log changement de statut global si nécessaire
   if (newStatus !== order.status) {
     db.prepare("INSERT INTO order_events (order_id, event_type, new_status, user_id) VALUES (?, 'status_changed', ?, ?)")
       .run(req.params.id, newStatus, req.session.userId);
