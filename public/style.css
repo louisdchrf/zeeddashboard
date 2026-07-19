@@ -503,10 +503,7 @@ nav { display: flex; gap: 2px; }
   background-position: right 8px center;
   padding-right: 22px;
 }
-.status-inline.status-pending     { border-color: rgba(139,148,158,.35); color: var(--text2); }
-.status-inline.status-in_progress { border-color: rgba(121,192,255,.45); color: var(--blue); background-color: rgba(121,192,255,.06); }
-.status-inline.status-to_deliver  { border-color: rgba(210,168,255,.45); color: var(--purple); background-color: rgba(210,168,255,.06); }
-.status-inline.status-done        { border-color: rgba(86,211,100,.4);   color: var(--green); background-color: rgba(86,211,100,.06); }
+
 
 .badge {
   padding: 2px 8px;

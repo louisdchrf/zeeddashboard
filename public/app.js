@@ -1118,7 +1118,7 @@ function renderOrders() {
         ).join('');
 
         const statusSelect = `
-          <select class="status-inline status-${o.status}"
+          <select class="status-inline"
             onclick="event.stopPropagation()"
             onchange="quickChangeStatus(${o.id}, this.value, this)">
             <option value="pending"     ${o.status==='pending'     ? 'selected':''}>⏳ En attente</option>
