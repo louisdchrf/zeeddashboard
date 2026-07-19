@@ -1134,18 +1134,6 @@ app.patch('/api/orders/:id/status', async (req, res) => {
   res.json({ success: true });
 });
 
-  db.prepare("UPDATE orders SET status='in_progress' WHERE id=? AND status='pending'").run(req.params.id);
-  broadcast('orders:changed', {});
-  res.json({ success: true });
-});
-
-  const user = db.prepare('SELECT is_admin FROM users WHERE id=?').get(req.session.userId);
-  if (!user?.is_admin && order.created_by !== req.session.userId)
-    return res.status(403).json({ error: 'Non autorisé' });
-  db.prepare("UPDATE orders SET status='done' WHERE id=?").run(req.params.id);
-  broadcast('orders:changed', {});
-  res.json({ success: true });
-});
 
 app.delete('/api/orders/:id', (req, res) => {
   const order = db.prepare('SELECT * FROM orders WHERE id=?').get(req.params.id);
@@ -1155,104 +1143,6 @@ app.delete('/api/orders/:id', (req, res) => {
   res.json({ success: true });
 });
 
-// ── Fin des routes ────────────────────────────────────────────────────────────
-
-// (ancien onglet Contrats supprimé — remplacé par multi-lignes sur les ordres)
-  const contracts = db.prepare(`
-    SELECT c.*, u.username AS created_by_name,
-           (SELECT COUNT(*) FROM contract_lines WHERE contract_id = c.id) AS line_count,
-           (SELECT COALESCE(SUM(qty_ordered * unit_price), 0) FROM contract_lines WHERE contract_id = c.id) AS total_value,
-           (SELECT COALESCE(SUM(qty_delivered * unit_price), 0) FROM contract_lines WHERE contract_id = c.id) AS delivered_value
-    FROM contracts c
-    LEFT JOIN users u ON c.created_by = u.id
-    ORDER BY c.created_at DESC
-  `).all();
-  res.json(contracts);
-});
-
-app.post('/api/contracts', (req, res) => {
-  const { name, client, deadline, notes } = req.body;
-  if (!name?.trim()) return res.status(400).json({ error: 'Nom requis' });
-  const r = db.prepare(`
-    INSERT INTO contracts (name, client, deadline, notes, created_by)
-    VALUES (?, ?, ?, ?, ?)
-  `).run(name.trim(), client || null, deadline || null, notes || '', req.session.userId);
-  broadcast('contracts:changed', {});
-  res.json({ id: r.lastInsertRowid });
-});
-
-app.put('/api/contracts/:id', (req, res) => {
-  const { name, client, deadline, notes } = req.body;
-  if (!name?.trim()) return res.status(400).json({ error: 'Nom requis' });
-  db.prepare('UPDATE contracts SET name=?, client=?, deadline=?, notes=? WHERE id=?')
-    .run(name.trim(), client || null, deadline || null, notes || '', req.params.id);
-  broadcast('contracts:changed', {});
-  res.json({ success: true });
-});
-
-app.delete('/api/contracts/:id', requireAdmin, (req, res) => {
-  db.prepare('DELETE FROM contracts WHERE id=?').run(req.params.id);
-  broadcast('contracts:changed', {});
-  res.json({ success: true });
-});
-
-app.post('/api/contracts/:id/toggle-status', (req, res) => {
-  const c = db.prepare('SELECT status FROM contracts WHERE id=?').get(req.params.id);
-  if (!c) return res.status(404).json({ error: 'Contrat introuvable' });
-  const newStatus = c.status === 'closed' ? 'active' : 'closed';
-  if (newStatus === 'closed') {
-    db.prepare("UPDATE contracts SET status='closed', closed_at=datetime('now') WHERE id=?").run(req.params.id);
-  } else {
-    db.prepare("UPDATE contracts SET status='active', closed_at=NULL WHERE id=?").run(req.params.id);
-  }
-  broadcast('contracts:changed', {});
-  res.json({ status: newStatus });
-});
-
-app.get('/api/contracts/:id/lines', (req, res) => {
-  res.json(db.prepare('SELECT * FROM contract_lines WHERE contract_id=? ORDER BY id').all(req.params.id));
-});
-
-app.post('/api/contracts/:id/lines', (req, res) => {
-  const { product_name, qty_ordered, unit_price } = req.body;
-  if (!product_name?.trim()) return res.status(400).json({ error: 'Produit requis' });
-  const r = db.prepare(`
-    INSERT INTO contract_lines (contract_id, product_name, qty_ordered, unit_price)
-    VALUES (?, ?, ?, ?)
-  `).run(req.params.id, product_name.trim(), qty_ordered || 0, unit_price || 0);
-  broadcast('contracts:changed', {});
-  res.json({ id: r.lastInsertRowid });
-});
-
-app.put('/api/contracts/:id/lines/:lid', (req, res) => {
-  const { product_name, qty_ordered, qty_delivered, unit_price } = req.body;
-  db.prepare(`
-    UPDATE contract_lines SET product_name=?, qty_ordered=?, qty_delivered=?, unit_price=?
-    WHERE id=? AND contract_id=?
-  `).run(product_name, qty_ordered || 0, qty_delivered || 0, unit_price || 0, req.params.lid, req.params.id);
-  broadcast('contracts:changed', {});
-  res.json({ success: true });
-});
-
-app.delete('/api/contracts/:id/lines/:lid', (req, res) => {
-  db.prepare('DELETE FROM contract_lines WHERE id=? AND contract_id=?').run(req.params.lid, req.params.id);
-  broadcast('contracts:changed', {});
-  res.json({ success: true });
-});
-
-app.get('/api/contracts/stats', (_, res) => {
-  const rows = db.prepare(`
-    SELECT cl.product_name,
-           SUM(cl.qty_ordered)   AS total_ordered,
-           SUM(cl.qty_delivered) AS total_delivered,
-           SUM(cl.qty_delivered * cl.unit_price) AS total_revenue
-    FROM contract_lines cl
-    JOIN contracts c ON cl.contract_id = c.id
-    GROUP BY cl.product_name
-    ORDER BY total_revenue DESC
-  `).all();
-  res.json(rows);
-});
 
 // ════════════════════════════════════════════════════════════════════════════
 // BACKUP / RESTORE
