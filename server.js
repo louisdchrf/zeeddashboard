@@ -816,6 +816,35 @@ app.get('/api/recipes', (_, res) => {
   res.json(products);
 });
 
+
+// ── Recettes (admin) ──────────────────────────────────────────────────────────
+
+// Remplacer tous les ingrédients d'un produit
+app.put('/api/recipes/:productId', requireAdmin, (req, res) => {
+  const { productId } = req.params;
+  const { ingredients = [] } = req.body; // [{ingredient_id, quantity}]
+  if (!db.prepare('SELECT id FROM order_items WHERE id=?').get(productId))
+    return res.status(404).json({ error: 'Produit introuvable' });
+
+  db.transaction(() => {
+    db.prepare('DELETE FROM recipes WHERE product_id=?').run(productId);
+    const ins = db.prepare('INSERT OR IGNORE INTO recipes (product_id, ingredient_id, quantity) VALUES (?,?,?)');
+    for (const { ingredient_id, quantity } of ingredients) {
+      if (ingredient_id && parseInt(quantity) > 0)
+        ins.run(productId, ingredient_id, parseInt(quantity));
+    }
+  })();
+  broadcast('recipes:changed', {});
+  res.json({ success: true });
+});
+
+// Supprimer toute la recette d'un produit
+app.delete('/api/recipes/product/:productId', requireAdmin, (req, res) => {
+  db.prepare('DELETE FROM recipes WHERE product_id=?').run(req.params.productId);
+  broadcast('recipes:changed', {});
+  res.json({ success: true });
+});
+
 // ── Inventaire ────────────────────────────────────────────────────────────────
 
 app.get('/api/inventory', (_, res) => {

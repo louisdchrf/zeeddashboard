@@ -2156,3 +2156,15 @@ nav { display: flex; gap: 2px; }
 .btn-user-admin:hover    { opacity: .75; }
 .btn-user-del            { background: rgba(239,68,68,.15);  color: #f87171; padding: 3px 7px; }
 .btn-user-del:hover      { opacity: .75; }
+
+/* ── Recipe edit ─────────────────────────────────────────────────────────── */
+.btn-recipe-edit {
+  background: none; border: none; cursor: pointer;
+  font-size: 13px; opacity: .5; padding: 0 4px;
+  transition: opacity .15s; line-height: 1;
+}
+.btn-recipe-edit:hover { opacity: 1; }
+.re-line {
+  display: flex; align-items: center; gap: 8px; margin-bottom: 8px;
+}
+.re-line select { flex: 1; }

@@ -740,6 +740,7 @@ function initSocket() {
   });
 
   socket.on('users:online', (users) => renderPresence(users));
+  socket.on('recipes:changed', async () => { await loadRecipes(); renderRecipes(); });
 }
 
 function renderPresence(users) {
@@ -1035,9 +1036,13 @@ function renderRecipes() {
             </div>`;
           }).join('');
 
+          const editBtn = currentUser?.is_admin
+            ? `<button class="btn-recipe-edit" onclick="openRecipeEditModal(${product.id})" title="Modifier">✏️</button>`
+            : '';
           return `<div class="recipe-card">
             <div class="recipe-card-header">
               <span class="recipe-product-name">${escapeHtml(product.name)}</span>
+              ${editBtn}
             </div>
             <div class="recipe-ingredients">${ingredientsHtml}</div>
           </div>`;
@@ -1868,3 +1873,71 @@ async function deleteUser(id, name) {
   if (r?.success) { showStatus('users-status', '✓ Utilisateur supprimé'); loadAdminUsers(); }
   else showStatus('users-status', r?.error || 'Erreur', false);
 }
+
+// ── Édition des recettes (admin) ──────────────────────────────────────────────
+
+function openRecipeEditModal(productId) {
+  const recipe = recipes.find(r => r.id === productId);
+  if (!recipe) return;
+  document.getElementById('recipe-edit-product-id').value = productId;
+  document.getElementById('recipe-edit-title').textContent = `Recette : ${recipe.name}`;
+  document.getElementById('recipe-edit-status').textContent = '';
+
+  const lines = document.getElementById('recipe-edit-lines');
+  lines.innerHTML = '';
+  for (const ing of recipe.ingredients) addRecipeEditLine(ing);
+
+  document.getElementById('modal-recipe-edit').style.display = 'flex';
+}
+
+function closeRecipeEditModal() {
+  document.getElementById('modal-recipe-edit').style.display = 'none';
+}
+
+function addRecipeEditLine(ing = null) {
+  const lines = document.getElementById('recipe-edit-lines');
+  const div = document.createElement('div');
+  div.className = 're-line';
+  div.innerHTML = `
+    <select class="re-ingredient">
+      ${orderItems.map(i => `<option value="${i.id}"${ing && i.id === ing.id ? ' selected' : ''}>${escapeHtml(i.name)}</option>`).join('')}
+    </select>
+    <input type="number" class="re-qty" value="${ing ? ing.quantity : 1}" min="1" style="width:64px;text-align:center"/>
+    <button type="button" class="btn-remove-line" onclick="this.parentElement.remove()">✕</button>`;
+  lines.appendChild(div);
+}
+
+async function saveRecipe() {
+  const productId = document.getElementById('recipe-edit-product-id').value;
+  const rows = document.querySelectorAll('#recipe-edit-lines .re-line');
+  const ingredients = [...rows].map(row => ({
+    ingredient_id: parseInt(row.querySelector('.re-ingredient').value),
+    quantity:      parseInt(row.querySelector('.re-qty').value) || 1,
+  }));
+  const r = await api.put(`/api/recipes/${productId}`, { ingredients });
+  if (r?.success) {
+    closeRecipeEditModal();
+    await loadRecipes();
+    renderRecipes();
+  } else {
+    showStatus('recipe-edit-status', r?.error || 'Erreur', false);
+  }
+}
+
+async function deleteRecipe() {
+  const productId = document.getElementById('recipe-edit-product-id').value;
+  const recipe = recipes.find(r => r.id === parseInt(productId));
+  if (!confirm(`Supprimer la recette de "${recipe?.name}" ?`)) return;
+  const r = await api.delete(`/api/recipes/product/${productId}`);
+  if (r?.success) {
+    closeRecipeEditModal();
+    await loadRecipes();
+    renderRecipes();
+  } else {
+    showStatus('recipe-edit-status', r?.error || 'Erreur', false);
+  }
+}
+
+document.getElementById('modal-recipe-edit')?.addEventListener('click', e => {
+  if (e.target === e.currentTarget) closeRecipeEditModal();
+});

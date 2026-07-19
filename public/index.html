@@ -143,6 +143,23 @@
   <div id="recipes-grid" class="recipes-grid"></div>
 </div>
 
+<!-- ── Modal: Éditer recette ── -->
+<div class="modal-overlay" id="modal-recipe-edit" style="display:none">
+  <div class="modal-box" style="max-width:480px">
+    <h2 id="recipe-edit-title">Modifier la recette</h2>
+    <input type="hidden" id="recipe-edit-product-id"/>
+    <div id="recipe-edit-lines"></div>
+    <button type="button" class="btn-secondary" style="margin-top:8px" onclick="addRecipeEditLine()">+ Ajouter un ingrédient</button>
+    <div class="modal-actions" style="margin-top:16px">
+      <button class="btn-danger" id="btn-recipe-delete" onclick="deleteRecipe()">Supprimer la recette</button>
+      <div style="flex:1"></div>
+      <button class="btn-secondary" onclick="closeRecipeEditModal()">Annuler</button>
+      <button class="btn-primary" onclick="saveRecipe()">Enregistrer</button>
+    </div>
+    <div id="recipe-edit-status" class="settings-status" style="margin-top:8px"></div>
+  </div>
+</div>
+
 <!-- ── TAB: Stats ── -->
 <div id="tab-stats" class="tab-content">
   <div class="section-header"><h2>Stats de ventes</h2></div>
