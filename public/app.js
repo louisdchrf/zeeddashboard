@@ -741,6 +741,11 @@ function initSocket() {
 
   socket.on('users:online', (users) => renderPresence(users));
   socket.on('recipes:changed', async () => { await loadRecipes(); renderRecipes(); });
+  socket.on('users:changed', async () => {
+    await loadUsers();
+    populateOrderAssigneeFilter();
+    populateAssigneeCheckboxes([...document.querySelectorAll('#o-assignees input:checked')].map(i => parseInt(i.value)));
+  });
 }
 
 function renderPresence(users) {

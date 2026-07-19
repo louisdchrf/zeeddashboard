@@ -905,7 +905,7 @@ app.put('/api/inventory/:itemId', (req, res) => {
 
 // ── Users list (pour assignation des commandes) ───────────────────────────────
 app.get('/api/users', (_, res) => {
-  res.json(db.prepare('SELECT id, username, avatar, discord_id, discord_notify, is_admin FROM users ORDER BY username').all());
+  res.json(db.prepare('SELECT id, username, avatar, discord_id, discord_notify, is_admin FROM users WHERE banned=0 OR banned IS NULL ORDER BY username').all());
 });
 
 app.patch('/api/users/me/notify', (req, res) => {
@@ -938,6 +938,7 @@ app.patch('/api/admin/users/:id', requireAdmin, (req, res) => {
   if (is_admin !== undefined) db.prepare('UPDATE users SET is_admin=? WHERE id=?').run(is_admin ? 1 : 0, req.params.id);
   // Révoquer les sessions si on banne
   if (banned) revokeDiscordSessions(null, parseInt(req.params.id));
+  broadcast('users:changed', {});
   res.json({ success: true });
 });
 
