@@ -111,6 +111,7 @@ function switchTab(tab) {
   if (tab === 'inventory') renderInventory();
   if (tab === 'recipes')   renderRecipes();
   if (tab === 'stats')     loadAndRenderStats();
+  if (tab === 'merchandise') { document.getElementById('modal-merchandise').style.display = 'flex'; }
 }
 
 document.querySelectorAll('.tab-btn, .bnav-btn').forEach(btn =>

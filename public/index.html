@@ -63,7 +63,6 @@
     <button class="tab-btn" data-tab="inventory">Inventaire</button>
     <button class="tab-btn" data-tab="map">Carte</button>
     <button class="tab-btn" data-tab="list">Plants actifs</button>
-    <button class="tab-btn" data-tab="merchandise">Marchandises</button>
     <button class="tab-btn" data-tab="recipes">Recettes</button>
     <button class="tab-btn" data-tab="stats">Stats</button>
     <button class="tab-btn tab-admin" data-tab="settings" style="display:none">Paramètres</button>
@@ -89,13 +88,18 @@
   <div id="map-hint">Clic droit / appui long pour planter</div>
 </div>
 
-<!-- ── TAB: Marchandises ── -->
-<div id="tab-merchandise" class="tab-content">
-  <div class="section-header">
-    <h2>Marchandises</h2>
-    <button class="btn-primary tab-admin" id="btn-add-merch" style="display:none">+ Ajouter</button>
+<!-- ── Modal: Marchandises ── -->
+<div class="modal-overlay" id="modal-merchandise" style="display:none">
+  <div class="modal-box" style="max-width:800px;width:95%">
+    <div class="modal-header" style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px">
+      <h2 style="margin:0">Marchandises</h2>
+      <div style="display:flex;gap:8px;align-items:center">
+        <button class="btn-primary tab-admin" id="btn-add-merch" style="display:none">+ Ajouter</button>
+        <button class="btn-cancel" onclick="document.getElementById('modal-merchandise').style.display='none'">✕</button>
+      </div>
+    </div>
+    <div class="merch-grid" id="merch-grid" style="max-height:70vh;overflow-y:auto"></div>
   </div>
-  <div class="merch-grid" id="merch-grid"></div>
 </div>
 
 <!-- ── TAB: Plants actifs ── -->
@@ -108,6 +112,7 @@
         <button class="list-filter-btn" data-filter="shared">👥 Équipe</button>
         <button class="list-filter-btn" data-filter="personal">🔒 Perso</button>
       </div>
+      <button class="btn-secondary tab-admin" id="btn-manage-merch" style="display:none" onclick="document.getElementById('modal-merchandise').style.display='flex'">📦 Marchandises</button>
       <button class="btn-primary" id="btn-add-list-plant">+ Ajouter</button>
     </div>
   </div>
@@ -700,10 +705,6 @@
   <button class="bnav-btn" data-tab="list">
     <span class="bnav-icon">🌿</span>
     <span class="bnav-label">Plants</span>
-  </button>
-  <button class="bnav-btn" data-tab="merchandise">
-    <span class="bnav-icon">📦</span>
-    <span class="bnav-label">Marchés</span>
   </button>
   <button class="bnav-btn" data-tab="recipes">
     <span class="bnav-icon">⚗️</span>
