@@ -1601,13 +1601,9 @@ function openStocksModal(itemId) {
         ${escapeHtml(u.username)}
         ${meta}
       </label>
-      <div class="qty-stepper">
-        <button type="button" class="qty-step-btn" onclick="stepInvQty(this,-1)">−</button>
-        <input type="number" class="inv-stocks-qty" data-user-id="${u.id}"
-               value="${s?.quantity ?? 0}" min="0" max="9999"
-               oninput="updateInvStocksTotal()"/>
-        <button type="button" class="qty-step-btn" onclick="stepInvQty(this,1)">+</button>
-      </div>
+      <input type="number" class="inv-stocks-qty" data-user-id="${u.id}"
+             value="${s?.quantity ?? 0}" min="0" max="9999"
+             oninput="updateInvStocksTotal()"/>
     </div>`;
   }).join('');
 
