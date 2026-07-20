@@ -741,6 +741,13 @@ function initSocket() {
 
   socket.on('users:online', (users) => renderPresence(users));
   socket.on('recipes:changed', async () => { await loadRecipes(); renderRecipes(); });
+  socket.on('inventory:favorites_changed', async (data) => {
+    // Recharger les favoris uniquement pour l'utilisateur concerné
+    if (data?.userId === currentUser?.id) {
+      await loadInvFavorites();
+      renderInventory();
+    }
+  });
   socket.on('users:changed', async () => {
     await loadUsers();
     populateOrderAssigneeFilter();
@@ -1593,9 +1600,13 @@ function openStocksModal(itemId) {
         ${escapeHtml(u.username)}
         ${meta}
       </label>
-      <input type="number" class="inv-stocks-qty" data-user-id="${u.id}"
-             value="${s?.quantity ?? 0}" min="0" max="9999"
-             oninput="updateInvStocksTotal()"/>
+      <div class="qty-stepper">
+        <button type="button" class="qty-step-btn" onclick="stepInvQty(this,-1)">−</button>
+        <input type="number" class="inv-stocks-qty" data-user-id="${u.id}"
+               value="${s?.quantity ?? 0}" min="0" max="9999"
+               oninput="updateInvStocksTotal()"/>
+        <button type="button" class="qty-step-btn" onclick="stepInvQty(this,1)">+</button>
+      </div>
     </div>`;
   }).join('');
 
@@ -1948,3 +1959,10 @@ async function deleteRecipe() {
 document.getElementById('modal-recipe-edit')?.addEventListener('click', e => {
   if (e.target === e.currentTarget) closeRecipeEditModal();
 });
+
+function stepInvQty(btn, delta) {
+  const input = btn.parentElement.querySelector('.inv-stocks-qty');
+  const val = Math.max(0, Math.min(9999, (parseInt(input.value) || 0) + delta));
+  input.value = val;
+  updateInvStocksTotal();
+}

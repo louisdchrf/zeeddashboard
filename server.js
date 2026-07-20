@@ -964,11 +964,13 @@ app.get('/api/inventory/favorites', (req, res) => {
 
 app.post('/api/inventory/favorites/:itemId', (req, res) => {
   db.prepare('INSERT OR IGNORE INTO inventory_favorites (user_id, item_id) VALUES (?, ?)').run(req.session.userId, req.params.itemId);
+  broadcast('inventory:favorites_changed', { userId: req.session.userId });
   res.json({ success: true });
 });
 
 app.delete('/api/inventory/favorites/:itemId', (req, res) => {
   db.prepare('DELETE FROM inventory_favorites WHERE user_id=? AND item_id=?').run(req.session.userId, req.params.itemId);
+  broadcast('inventory:favorites_changed', { userId: req.session.userId });
   res.json({ success: true });
 });
 

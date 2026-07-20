@@ -2165,3 +2165,15 @@ nav { display: flex; gap: 2px; }
   display: flex; align-items: center; gap: 8px; margin-bottom: 8px;
 }
 .re-line select { flex: 1; }
+
+/* ── Qty stepper ─────────────────────────────────────────────────────────── */
+.qty-stepper { display: flex; align-items: center; gap: 4px; }
+.qty-step-btn {
+  width: 28px; height: 28px; border-radius: 6px;
+  border: 1px solid var(--border); background: var(--bg2);
+  color: var(--text); font-size: 16px; line-height: 1;
+  cursor: pointer; display: flex; align-items: center; justify-content: center;
+  transition: background .15s; flex-shrink: 0;
+}
+.qty-step-btn:hover { background: var(--bg-hover, rgba(255,255,255,.08)); }
+.qty-stepper .inv-stocks-qty { width: 60px; text-align: center; }
