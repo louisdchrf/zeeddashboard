@@ -676,15 +676,22 @@ document.getElementById('btn-save-bot').addEventListener('click', async () => {
   else showStatus('bot-status', r?.error || 'Erreur', false);
 });
 
-document.getElementById('btn-test-bot').addEventListener('click', async () => {
-  const payload = { discord_notify_channel_id: document.getElementById('s-notify-channel-id').value.trim() };
-  const token = document.getElementById('s-bot-token').value;
-  if (token) payload.discord_bot_token = token;
-  await api.put('/api/settings', payload);
-  const r = await api.post('/api/settings/test-bot', {});
-  if (r?.success) showStatus('bot-status', '✓ Message de test envoyé dans le salon');
+async function testBotChannel(channelInputId, label) {
+  const channelId = document.getElementById(channelInputId).value.trim();
+  const token = document.getElementById('s-bot-token').value.trim();
+  if (token) await api.put('/api/settings', { discord_bot_token: token });
+  if (!channelId) return showStatus('bot-status', `ID du ${label} manquant`, false);
+  const r = await api.post('/api/settings/test-bot', { channelId });
+  if (r?.success) showStatus('bot-status', `✓ Message de test envoyé dans le salon ${label}`);
   else showStatus('bot-status', r?.error || 'Erreur lors du test', false);
-});
+}
+
+document.getElementById('btn-test-notify').addEventListener('click', () =>
+  testBotChannel('s-notify-channel-id', 'logs')
+);
+document.getElementById('btn-test-orders').addEventListener('click', () =>
+  testBotChannel('s-orders-channel-id', 'commandes')
+);
 
 document.getElementById('btn-revoke-sessions').addEventListener('click', async () => {
   const r = await api.post('/api/admin/revoke-sessions', {});

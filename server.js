@@ -469,9 +469,9 @@ app.post('/api/admin/revoke-sessions', requireAdmin, (req, res) => {
   res.json({ success: true, revoked: count });
 });
 
-app.post('/api/settings/test-bot', requireAdmin, async (_, res) => {
+app.post('/api/settings/test-bot', requireAdmin, async (req, res) => {
   const token     = getSetting('discord_bot_token');
-  const channelId = getSetting('discord_notify_channel_id');
+  const channelId = req.body?.channelId || getSetting('discord_notify_channel_id');
   if (!token)     return res.status(400).json({ error: 'Aucun bot token configuré' });
   if (!channelId) return res.status(400).json({ error: 'Aucun salon configuré' });
   try {
