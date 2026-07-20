@@ -101,6 +101,7 @@ map.on('touchend touchmove', () => { clearTimeout(_longPressTimer); _longPressTi
 
 // ── Tab navigation ────────────────────────────────────────────────────────────
 function switchTab(tab) {
+  if (tab !== 'merchandise') location.hash = tab;
   document.querySelectorAll('.tab-btn').forEach(b  => b.classList.toggle('active', b.dataset.tab === tab));
   document.querySelectorAll('.bnav-btn').forEach(b => b.classList.toggle('active', b.dataset.tab === tab));
   document.querySelectorAll('.tab-content').forEach(t => t.classList.remove('active'));
@@ -1715,6 +1716,10 @@ function updateNotifyBtn() {
   }
   initNotifyToggle(user);
   initSocket();
+  // Restaurer l'onglet depuis le hash URL
+  const hashTab = location.hash.replace('#', '');
+  const validTabs = ['orders','map','list','inventory','recipes','stats','settings'];
+  switchTab(validTabs.includes(hashTab) ? hashTab : 'orders');
 })();
 
 // ════════════════════════════════════════════════════════════════════════════
