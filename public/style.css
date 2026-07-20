@@ -1633,6 +1633,9 @@ nav { display: flex; gap: 2px; }
   font-variant-numeric: tabular-nums;
 }
 .inv-stocks-qty:focus { outline: none; border-color: var(--accent); }
+.inv-stocks-qty::-webkit-outer-spin-button,
+.inv-stocks-qty::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+.inv-stocks-qty[type=number] { -moz-appearance: textfield; }
 .inv-stocks-total {
   font-size: 0.85rem;
   color: var(--text2);
